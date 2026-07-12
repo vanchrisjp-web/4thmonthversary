@@ -23,7 +23,7 @@ compatibility_date = "2024-11-01"
 directory = "."
 binding = "ASSETS"
 
-# --- Mode B only ---
-# [[kv_namespaces]]
-# binding = "CONTENT"
-# id = "<your_namespace_id>"
+# --- KV: content publishing (Mode B) + photobox room signaling ---
+[[kv_namespaces]]
+binding = "CONTENT"
+id = "2bd46815489442c4a28e0507d67a377b"
