@@ -69,7 +69,7 @@ async function handlePhotobox(request, env, url) {
   const parts = url.pathname.split("/").filter(Boolean); // api, photobox, <room>, <slot>
   const room = (parts[2] || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
   const slot = parts[3];
-  if (!room || (slot !== "offer" && slot !== "answer")) return jsonRes({ error: "bad_request" }, 400);
+  if (!room || !/^(offer|answer|ca|cb)$/.test(slot || "")) return jsonRes({ error: "bad_request" }, 400);
   const id = env.PHOTOROOM.idFromName(room);
   return env.PHOTOROOM.get(id).fetch(request);
 }
@@ -87,20 +87,38 @@ export class PhotoRoom {
   async fetch(request) {
     const url = new URL(request.url);
     const parts = url.pathname.split("/").filter(Boolean);
-    const slot = parts[parts.length - 1]; // offer | answer
-    if (slot !== "offer" && slot !== "answer") return jsonRes({ error: "bad_request" }, 400);
-    if (request.method === "POST" || request.method === "PUT") {
-      const body = await request.text();
-      if (body.length > 120000) return jsonRes({ error: "too_large" }, 413);
-      await this.state.storage.put(slot, body);
-      return jsonRes({ ok: true });
+    const slot = parts[parts.length - 1]; // offer | answer | ca | cb
+    const st = this.state.storage;
+
+    // offer / answer — one value each
+    if (slot === "offer" || slot === "answer") {
+      if (request.method === "POST" || request.method === "PUT") {
+        const body = await request.text();
+        if (body.length > 120000) return jsonRes({ error: "too_large" }, 413);
+        await st.put(slot, body);
+        return jsonRes({ ok: true });
+      }
+      if (request.method === "GET") {
+        const v = await st.get(slot);
+        if (!v) return jsonRes({ pending: true });
+        return new Response(v, { headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      }
     }
-    if (request.method === "GET") {
-      const v = await this.state.storage.get(slot);
-      if (!v) return jsonRes({ pending: true });
-      return new Response(v, { headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+    // ca / cb — trickle ICE candidate lists (append-only; read new ones since an index)
+    if (slot === "ca" || slot === "cb") {
+      if (request.method === "POST" || request.method === "PUT") {
+        const body = await request.text();
+        const arr = (await st.get(slot)) || [];
+        if (arr.length < 150 && body.length < 4000) { arr.push(body); await st.put(slot, arr); }
+        return jsonRes({ ok: true, n: arr.length });
+      }
+      if (request.method === "GET") {
+        const since = parseInt(url.searchParams.get("since") || "0", 10) || 0;
+        const arr = (await st.get(slot)) || [];
+        return jsonRes({ items: arr.slice(since), n: arr.length });
+      }
     }
-    return jsonRes({ error: "method" }, 405);
+    return jsonRes({ error: "bad_request" }, 400);
   }
 }
 

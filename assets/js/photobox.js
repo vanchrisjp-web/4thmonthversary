@@ -45,8 +45,9 @@
     cleanup();
   }
   function cleanup() {
+    stopCandPolls();
     if (pc) { try { pc.close(); } catch (e) {} pc = null; }
-    connected = false;
+    connected = false; remoteReady = false; candQueue = [];
   }
 
   // ------------------------------------------------------------ signaling
@@ -60,6 +61,9 @@
         if (!r.ok) throw new Error("post");
       });
     });
+  }
+  function postRaw(room, slot, body) {
+    return fetch(api(room, slot), { method: "POST", headers: { "Content-Type": "application/json" }, body: body }).catch(function () {});
   }
   function poll(room, slot, timeoutMs) {
     var t0 = Date.now();
@@ -86,20 +90,25 @@
   function showSelf() {
     ["#selfPreview", "#selfVideo"].forEach(function (s) { var v = $(s); if (v) v.srcObject = localStream; });
   }
-  function newPC() {
+  var remoteReady = false, candQueue = [], candTimers = [], candPollStop = false;
+
+  function newPC(candSlot) {
     var p = new RTCPeerConnection(ICE);
     localStream.getTracks().forEach(function (t) { p.addTrack(t, localStream); });
     p.ontrack = function (e) {
       var rv = $("#remoteVideo"); if (rv) rv.srcObject = e.streams[0];
       var off = $("#remote-off"); if (off) off.style.display = "none";
     };
-    function markConnected() { if (!connected) { connected = true; enterSession(); } }
+    // trickle: publish each local candidate the instant it's found (no gather wait)
+    p.onicecandidate = function (e) {
+      if (e.candidate) postRaw(myCode, candSlot, JSON.stringify(e.candidate));
+    };
     p.onconnectionstatechange = function () {
       var st = p.connectionState;
       setStatus("#session-status", "Status: " + st);
       if (st === "connected") markConnected();
       if (st === "failed") setStatus("#session-status",
-        "Gagal menyambung. Coba lagi — kalau tetap gagal, jaringan salah satu perlu relay lain.", true);
+        "Gagal menyambung. Coba lagi — kalau tetap gagal, salah satu jaringan perlu relay lain.", true);
     };
     p.oniceconnectionstatechange = function () {
       var st = p.iceConnectionState;
@@ -107,15 +116,34 @@
     };
     return p;
   }
-  function waitIce(p) {
-    if (p.iceGatheringState === "complete") return Promise.resolve();
-    return new Promise(function (res) {
-      var to = setTimeout(res, 5000);
-      p.addEventListener("icegatheringstatechange", function h() {
-        if (p.iceGatheringState === "complete") { clearTimeout(to); p.removeEventListener("icegatheringstatechange", h); res(); }
-      });
-    });
+  function markConnected() {
+    if (connected) return;
+    connected = true;
+    enterSession();
+    setTimeout(stopCandPolls, 4000); // grab trailing candidates, then stop
   }
+  function addRemoteCandidate(str) {
+    var c; try { c = JSON.parse(str); } catch (e) { return; }
+    if (remoteReady && pc) { try { pc.addIceCandidate(c); } catch (e) {} }
+    else candQueue.push(c);
+  }
+  function flushCandidates() {
+    remoteReady = true;
+    candQueue.forEach(function (c) { if (pc) { try { pc.addIceCandidate(c); } catch (e) {} } });
+    candQueue = [];
+  }
+  function startCandPoll(code, slot) {
+    var since = 0, t0 = Date.now();
+    (function loop() {
+      if (candPollStop || Date.now() - t0 > 90000) return;
+      fetch(api(code, slot) + "?since=" + since, { cache: "no-store" })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { if (j && j.items) { j.items.forEach(addRemoteCandidate); since = j.n; } })
+        .catch(function () {})
+        .then(function () { if (!candPollStop) candTimers.push(setTimeout(loop, 900)); });
+    })();
+  }
+  function stopCandPolls() { candPollStop = true; candTimers.forEach(clearTimeout); candTimers = []; }
 
   function rid() {
     var A = "ABCDEFGHJKMNPQRSTUVWXYZ23456789", s = "";
@@ -124,36 +152,37 @@
   }
 
   function startHost() {
-    role = "host"; myCode = rid(); setStatus("#lobby-status", "");
+    role = "host"; myCode = rid(); remoteReady = false; candQueue = []; candPollStop = false;
+    setStatus("#lobby-status", "");
     getMedia().then(function (stream) {
       localStream = stream; showSelf();
-      pc = newPC();
+      pc = newPC("ca"); // host publishes its candidates to "ca"
       return pc.createOffer().then(function (o) { return pc.setLocalDescription(o); })
-        .then(function () { return waitIce(pc); })
-        .then(function () { return post(myCode, "offer", pc.localDescription); })
+        .then(function () { return post(myCode, "offer", pc.localDescription); }) // send offer immediately
         .then(function () {
           showWaiting(myCode);
+          startCandPoll(myCode, "cb"); // pull guest candidates
           return poll(myCode, "answer", 300000);
         })
         .then(function (ans) {
           setStatus("#wait-status", "Tersambung, menyiapkan sesi");
-          return pc.setRemoteDescription(ans);
+          return pc.setRemoteDescription(ans).then(flushCandidates);
         });
     }).catch(handleErr);
   }
 
   function startJoin(code) {
     if (!code) { setStatus("#lobby-status", "Masukkan kodenya dulu.", true); return; }
-    role = "guest"; myCode = code; setStatus("#lobby-status", "Menyambung ke room " + code + "…");
+    role = "guest"; myCode = code; remoteReady = false; candQueue = []; candPollStop = false;
+    setStatus("#lobby-status", "Menyambung ke room " + code + "…");
     poll(code, "offer", 20000).then(function (offer) {
       return getMedia().then(function (stream) {
         localStream = stream; showSelf();
-        pc = newPC();
-        return pc.setRemoteDescription(offer)
-          .then(function () { return pc.createAnswer(); })
+        pc = newPC("cb"); // guest publishes its candidates to "cb"
+        return pc.setRemoteDescription(offer).then(flushCandidates)
+          .then(function () { startCandPoll(code, "ca"); return pc.createAnswer(); }) // pull host candidates
           .then(function (a) { return pc.setLocalDescription(a); })
-          .then(function () { return waitIce(pc); })
-          .then(function () { return post(code, "answer", pc.localDescription); })
+          .then(function () { return post(code, "answer", pc.localDescription); }) // send answer immediately
           .then(function () { setStatus("#lobby-status", "Tersambung, menyiapkan sesi…"); });
       });
     }).catch(handleErr);

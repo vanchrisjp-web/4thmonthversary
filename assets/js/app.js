@@ -548,6 +548,17 @@
     audioEl.addEventListener("play", function () { isPlaying = true; refresh(); });
     audioEl.addEventListener("pause", function () { isPlaying = false; refresh(); });
     audioEl.addEventListener("ended", function () { isPlaying = false; refresh(); });
+
+    // song progress bar (seekable)
+    var seek = $("#song-seek"), fill = $("#song-fill");
+    audioEl.addEventListener("timeupdate", function () {
+      if (fill && audioEl.duration) fill.style.setProperty("--p", (audioEl.currentTime / audioEl.duration * 100).toFixed(1) + "%");
+    });
+    if (seek) seek.addEventListener("click", function (e) {
+      if (!audioEl.duration) return;
+      var rect = seek.getBoundingClientRect();
+      audioEl.currentTime = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * audioEl.duration;
+    });
     refresh();
 
     // "Autoplay": browsers block unprompted audio, so the looping song starts on
@@ -565,12 +576,10 @@
       });
     }
   }
-  function setSpin(fast) {
-    if (prefersReduced()) { spinOff(); return; }
+  function setSpin(playing) {
+    var on = playing && !prefersReduced();
     ["#hero-record", "#mini-record"].forEach(function (sel) {
-      var r = $(sel); if (!r) return;
-      r.classList.add("spinning");
-      r.classList.toggle("playing", !!fast);
+      var r = $(sel); if (r) r.classList.toggle("spinning", on);
     });
   }
   function spinOff() {
@@ -852,6 +861,7 @@
             (t.photo ? "<button class='btn' data-act='delphoto' type='button'>Hapus foto</button>" : "") +
           "</div>" +
           "<div class='uploader'><span class='uploader__label'>Catatan suara</span>" +
+            "<span class='hint' style='margin:0 0 .25em'>📖 Baca ini pas rekam:</span>" +
             "<textarea class='field' data-f='prompt' rows='2' placeholder='Prompt buat dibaca pas rekam…'>" + esc(t.prompt) + "</textarea>" +
             recorderUI(t) +
           "</div>" +

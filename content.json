@@ -20,12 +20,12 @@
     },
     {
       "n": 2,
-      "title": "Video Call Pertama",
+      "title": "Obrolan yang Ngalir",
       "date": "2026-03-24",
-      "story": "Gugup banget pas pertama lihat kamu langsung, walau lewat kamera. Sinyal jelek, tapi nggak ada yang mau nutup duluan.",
+      "story": "Obrolan pertama yang panjang, dari hal random sampai hal yang jarang aku cerita ke siapa-siapa. Sama kamu, semuanya ngalir aja.",
       "photo": "",
       "commentary": "",
-      "prompt": "Gugup ya pas pertama lihat kamu di kamera. Aku suka sama kamu, dari dulu."
+      "prompt": "Ngobrol sama kamu itu selalu ngalir. Aku suka sama kamu, dari dulu."
     },
     {
       "n": 3,
@@ -40,10 +40,10 @@
       "n": 4,
       "title": "It Takes Two",
       "date": "2026-04-07",
-      "story": "Main It Takes Two bareng. Berantem dikit pas puzzle-nya susah, terus ketawa lagi. Katanya game buat berdua — cocok.",
+      "story": "Main It Takes Two bareng. Panik bareng pas puzzle-nya susah, terus ketawa lagi. Katanya game buat berdua — cocok.",
       "photo": "",
       "commentary": "",
-      "prompt": "Main berdua emang suka berantem, tapi aku nggak mau main sama siapa-siapa selain kamu."
+      "prompt": "Main berdua sama kamu itu favoritku. Aku nggak mau main sama siapa-siapa selain kamu."
     },
     {
       "n": 5,
@@ -101,21 +101,21 @@
     },
     {
       "n": 11,
-      "title": "Berantem Jarak Jauh",
+      "title": "Pagi dan Malam",
       "date": "2026-05-26",
-      "story": "Berantem itu lebih susah pas jauh. Nggak bisa peluk buat baikan. Tapi kita tetep milih ngobrol sampai selesai.",
+      "story": "Kamu yang pertama aku kabarin pas bangun, dan yang terakhir sebelum tidur. Walau jamnya beda dua jam, ritmenya selalu ketemu.",
       "photo": "",
       "commentary": "",
-      "prompt": "Berantem jarak jauh susah. Tapi aku tetep milih kamu. Maaf ya, aku sayang kamu."
+      "prompt": "Kamu yang pertama aku kabarin tiap bangun. Aku sayang kamu, tiap hari."
     },
     {
       "n": 12,
-      "title": "Baikan Lewat Layar",
+      "title": "Playlist Kita",
       "date": "2026-06-02",
-      "story": "Besoknya kita baikan. Lewat pesan panjang dan video call yang aku simpan diam-diam.",
+      "story": "Mulai satu playlist isinya lagu-lagu kita. Tiap nambah lagu, kayak nambah satu kenangan.",
       "photo": "",
       "commentary": "",
-      "prompt": "Makasih udah mau baikan. Aku sayang kamu, lebih dari kemarin."
+      "prompt": "Playlist kita makin panjang, kayak kita. Aku cinta sama kamu."
     },
     {
       "n": 13,

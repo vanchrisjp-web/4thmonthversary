@@ -248,8 +248,7 @@ body::before {
   transform: translateZ(0);
   will-change: transform;
 }
-.record.spinning { animation: spin var(--spin-dur, 7s) linear infinite; }
-.record.playing { --spin-dur: 3.4s; }
+.record.spinning { animation: spin 3.4s linear infinite; } /* spins only while the song plays */
 @keyframes spin { to { transform: rotate(360deg); } }
 .record svg { width: 100%; height: 100%; }
 
@@ -591,6 +590,12 @@ body::before {
   backdrop-filter: blur(8px);
   border-top: 1px solid var(--line-strong);
 }
+/* song progress / seek bar riding the top edge of the bar */
+.nowbar__seek { position: absolute; top: 0; left: 0; right: 0; width: 100%; height: 12px; padding: 0; border: 0; background: none; cursor: pointer; z-index: 3; }
+.nowbar__seek::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--line-strong); transition: height var(--dur) var(--ease); }
+.nowbar__seek-fill { position: absolute; left: 0; top: 0; height: 2px; width: var(--p, 0%); background: var(--riso-pink); transition: height var(--dur) var(--ease); }
+.nowbar__seek:hover::before, .nowbar__seek:hover .nowbar__seek-fill, .nowbar__seek:focus-visible .nowbar__seek-fill { height: 5px; }
+
 .nowbar__mini { position: relative; width: 46px; height: 46px; flex: none; --arm: -30deg; }
 .nowbar__mini .record { inset: 3px; }
 .nowbar__mini .tonearm { width: 22%; height: 60%; top: -6%; right: 2%; }
