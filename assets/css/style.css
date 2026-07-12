@@ -420,6 +420,93 @@ body.song-playing .tonearm__head { animation-play-state: running; } /* needle ri
 .spread__date { color: var(--riso-blue); }
 .spread__story { font-size: var(--fs-lead); line-height: 1.45; }
 
+/* ===================== GALLERY (virtual museum) ===================== */
+.gallery__intro { color: var(--muted); margin: calc(-1 * var(--sp-sm)) 0 0; }
+.gallery__wall {
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(1.6rem, 1rem + 3.4vw, 4.5rem);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: var(--edge);
+  padding: var(--sp-xl) var(--edge) var(--sp-lg);
+  margin: var(--sp-lg) calc(-1 * var(--edge)) 0;
+  -webkit-overflow-scrolling: touch;
+  /* soft spotlight wash from above, like gallery lighting */
+  background:
+    radial-gradient(130% 90% at 50% -20%, color-mix(in srgb, var(--paper) 7%, transparent), transparent 62%);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.gallery__wall::-webkit-scrollbar { height: 8px; }
+.gallery__wall::-webkit-scrollbar-track { background: transparent; }
+.gallery__wall::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 99px; }
+.gallery__wall::before,
+.gallery__wall::after { content: ""; flex: 0 0 clamp(0.5rem, 4vw, 3rem); }
+
+.frame {
+  flex: none;
+  scroll-snap-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-sm);
+  transition: transform var(--dur) var(--ease);
+}
+.frame:hover { transform: translateY(-7px); }
+.frame__mat {
+  position: relative;
+  background: var(--paper);
+  padding: clamp(0.75rem, 0.4rem + 1.6vw, 1.5rem);
+  border: 1px solid #0a0908;
+  box-shadow:
+    0 28px 55px -20px rgba(0, 0, 0, 0.9),
+    0 0 0 6px #16130f,
+    0 0 0 7px color-mix(in srgb, var(--paper) 12%, transparent);
+}
+.frame__mat::after { /* inner mat bevel line */
+  content: "";
+  position: absolute;
+  inset: clamp(0.45rem, 1.1vw, 0.9rem);
+  border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
+  pointer-events: none;
+}
+.frame__pic { position: relative; display: block; overflow: hidden; background: #0c0b09; }
+.frame__pic img {
+  display: block;
+  max-height: clamp(210px, 40vh, 400px);
+  width: auto;
+  max-width: min(76vw, 460px);
+  object-fit: cover;
+  filter: grayscale(1) contrast(1.08) brightness(1.02);
+}
+.frame__pic::after { /* riso duotone tint, same as the track spreads */
+  content: "";
+  position: absolute; inset: 0;
+  background: var(--riso-pink);
+  mix-blend-mode: screen;
+  opacity: 0.18;
+  pointer-events: none;
+}
+.frame:nth-child(3n) .frame__pic::after { background: var(--riso-blue); opacity: 0.16; }
+.frame__plaque {
+  font-family: var(--font-mono);
+  text-align: center;
+  display: flex; flex-direction: column; gap: 0.25em;
+  max-width: 32ch;
+}
+.frame__plaque .t {
+  color: var(--paper);
+  font-size: var(--fs-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.frame__plaque .d { color: var(--muted); font-size: var(--fs-mono-xs); letter-spacing: 0.12em; }
+.gallery__empty { color: var(--muted); margin-top: var(--sp-lg); }
+
 /* commentary voice note player */
 .commentary {
   display: flex;

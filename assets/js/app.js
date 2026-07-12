@@ -171,6 +171,7 @@
     renderTracklist();
     renderLiner();
     renderCredits();
+    renderGallery();
     renderBack();
 
     $("#footer").textContent = content.footer || "";
@@ -430,6 +431,61 @@
       if (hit) shown++;
     });
     $("#filter-count").textContent = q ? shown + " cocok" : "";
+  }
+
+  // ---- gallery (virtual museum wall) ----
+  var albumFrames = [];   // cached photobox-album entries {src, ts}
+  var albumFetched = false;
+  function renderGallery() {
+    var wall = $("#gallery-wall");
+    if (!wall) return;
+    wall.innerHTML = "";
+    // curated track photos first
+    (content.tracks || [])
+      .slice()
+      .sort(function (a, b) { return (a.n || 0) - (b.n || 0); })
+      .forEach(function (t) {
+        if (t.photo) wall.appendChild(frameEl(t.photo, pad(t.n) + " · " + (t.title || ""), fmtDateID(t.date) || ""));
+      });
+    // photobox album (cached across re-renders)
+    albumFrames.forEach(function (a) { wall.appendChild(frameEl(a.src, "Photobox · sesi berdua", a.ts)); });
+    galleryCount(wall.children.length);
+    // fetch the album once, then re-render to slot it in
+    if (albumFetched || !/^https?:/.test(location.protocol)) return;
+    albumFetched = true;
+    fetch("/api/album", { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        var items = (j && j.items) ? j.items : [];
+        if (!items.length) return;
+        albumFrames = items.map(function (a) {
+          var ts = "";
+          if (a.uploaded) {
+            var d = new Date(a.uploaded);
+            if (!isNaN(d)) ts = d.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" });
+          }
+          return { src: a.url, ts: ts };
+        });
+        renderGallery();
+      })
+      .catch(function () { /* album optional; ignore */ });
+  }
+  function galleryCount(n) {
+    var c = $("#gallery-count");
+    if (c) c.textContent = n ? n + " foto" : "";
+    var empty = $("#gallery-empty");
+    if (empty) empty.hidden = n > 0;
+  }
+  function frameEl(src, title, sub) {
+    var fig = document.createElement("figure");
+    fig.className = "frame";
+    fig.innerHTML =
+      "<div class='frame__mat'><span class='frame__pic'>" +
+        "<img src='" + esc(src) + "' alt='" + esc(title) + "' loading='lazy'></span></div>" +
+      "<figcaption class='frame__plaque'><span class='t'>" + esc(title) + "</span>" +
+        (sub ? "<span class='d'>" + esc(sub) + "</span>" : "") +
+      "</figcaption>";
+    return fig;
   }
 
   // ---- back cover ----
