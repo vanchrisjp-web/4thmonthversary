@@ -13,7 +13,7 @@
 # Leaving the KV block commented keeps the API at /api/content returning 404,
 # which the site treats as "fall back to content.json" — so Mode A never breaks.
 
-name = "side-a"
+name = "4thmonthversary"
 pages_build_output_dir = "."
 
 # --- Mode B only ---
