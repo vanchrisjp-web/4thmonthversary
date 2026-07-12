@@ -250,23 +250,35 @@
 
   function wireCommentary(node) {
     var wave = $(".commentary__wave", node);
-    for (var i = 0; i < 28; i++) {
+    var bars = [], N = 28;
+    for (var i = 0; i < N; i++) {
       var bar = document.createElement("i");
       bar.style.setProperty("--h", (25 + ((i * 37) % 70)) + "%");
-      wave.appendChild(bar);
+      wave.appendChild(bar); bars.push(bar);
     }
     var btn = $(".commentary__btn", node);
     var timeEl = $(".commentary__time", node);
     var au = new Audio(node.dataset.src);
-    au.addEventListener("loadedmetadata", function () {
-      if (isFinite(au.duration)) timeEl.textContent = fmtClock(au.duration);
+    var dur = 0, ducked = false;
+    function showTime() { timeEl.textContent = fmtClock(au.currentTime) + " / " + fmtClock(dur || au.duration || 0); }
+    function paint() {
+      var frac = dur ? au.currentTime / dur : 0, active = Math.round(frac * N);
+      for (var i = 0; i < N; i++) bars[i].classList.toggle("on", i < active);
+    }
+    au.addEventListener("loadedmetadata", function () { if (isFinite(au.duration)) dur = au.duration; showTime(); });
+    au.addEventListener("timeupdate", function () { showTime(); paint(); });
+    function reset() {
+      node.classList.remove("playing"); btn.textContent = "⏵";
+      if (ducked) { audioEl.volume = 1; ducked = false; } // restore the BGM
+    }
+    au.addEventListener("play", function () {
+      node.classList.add("playing"); btn.textContent = "⏸";
+      if (!audioEl.paused) { audioEl.volume = 0.18; ducked = true; } // duck the BGM to a background level
     });
-    au.addEventListener("timeupdate", function () { timeEl.textContent = fmtClock(au.currentTime); });
-    au.addEventListener("ended", function () { node.classList.remove("playing"); btn.textContent = "⏵"; });
-    btn.addEventListener("click", function () {
-      if (au.paused) { au.play(); node.classList.add("playing"); btn.textContent = "⏸"; }
-      else { au.pause(); node.classList.remove("playing"); btn.textContent = "⏵"; }
-    });
+    au.addEventListener("pause", reset);
+    au.addEventListener("ended", function () { reset(); au.currentTime = 0; paint(); });
+    btn.addEventListener("click", function () { if (au.paused) au.play().catch(function () {}); else au.pause(); });
+    showTime();
   }
   function fmtClock(sec) { sec = Math.floor(sec || 0); return Math.floor(sec / 60) + ":" + pad(sec % 60); }
 
@@ -592,10 +604,10 @@
     }
   }
   function setSpin(playing) {
-    var on = playing && !prefersReduced(); // spins only while the song is playing
-    ["#hero-record", "#mini-record"].forEach(function (sel) {
-      var r = $(sel); if (r) r.classList.toggle("spinning", on);
-    });
+    // records always carry .spinning; play/pause is via animation-play-state on
+    // body.song-playing, so pausing FREEZES the rotation in place (not reset to 0).
+    ["#hero-record", "#mini-record"].forEach(function (sel) { var r = $(sel); if (r) r.classList.add("spinning"); });
+    document.body.classList.toggle("song-playing", !!playing);
   }
   function spinOff() {
     ["#hero-record", "#mini-record"].forEach(function (sel) {
@@ -931,15 +943,19 @@
       if (mediaRecorder) return;
       navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
         recStream = stream;
-        var mime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].filter(function (m) {
+        var mime = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg", "audio/mp4"].filter(function (m) {
           return window.MediaRecorder.isTypeSupported(m);
         })[0] || "";
-        mediaRecorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+        var mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+        mediaRecorder = mr;
         recChunks = [];
-        mediaRecorder.ondataavailable = function (e) { if (e.data.size) recChunks.push(e.data); };
-        mediaRecorder.onstop = function () {
-          var blob = new Blob(recChunks, { type: mediaRecorder.mimeType || "audio/webm" });
-          blobToDataURL(blob).then(function (d) { content.tracks[i].commentary = d; renderTracks(); checkSize(); });
+        mr.ondataavailable = function (e) { if (e.data && e.data.size) recChunks.push(e.data); };
+        mr.onstop = function () { // use local mr — stopRecording() nulls the module var before this async fires
+          var blob = new Blob(recChunks, { type: mr.mimeType || mime || "audio/webm" });
+          blobToDataURL(blob).then(function (d) {
+            content.tracks[i].commentary = d; renderTracks(); checkSize();
+            toast("Rekaman tersimpan. Jangan lupa Save atau Export.");
+          });
           cleanupStream();
         };
         var rec = $(".rec", card);

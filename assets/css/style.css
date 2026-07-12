@@ -248,7 +248,8 @@ body::before {
   transform: translateZ(0);
   will-change: transform;
 }
-.record.spinning { animation: spin 2.8s linear infinite; }
+.record.spinning { animation: spin 2.8s linear infinite; animation-play-state: paused; }
+body.song-playing .record.spinning { animation-play-state: running; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .record svg { width: 100%; height: 100%; }
 
@@ -287,9 +288,11 @@ body::before {
   width: 14px; height: 26px;
   transform: translateX(-50%);
   background: var(--paper);
-  animation: needle-bob 0.5s ease-in-out infinite alternate;
+  animation: needle-bob 0.45s ease-in-out infinite alternate;
+  animation-play-state: paused;
 }
-@keyframes needle-bob { from { transform: translateX(-50%) translateY(0); } to { transform: translateX(-50%) translateY(1.5px); } }
+body.song-playing .tonearm__head { animation-play-state: running; } /* needle rides only while the song plays */
+@keyframes needle-bob { from { transform: translateX(-50%) translateY(-1px); } to { transform: translateX(-50%) translateY(2.5px); } }
 .tonearm__head::after {
   content: "";
   position: absolute;
@@ -320,12 +323,12 @@ body::before {
   display: grid; place-items: center; color: var(--paper);
 }
 .disc-toggle .ic {
-  width: 62px; height: 62px; border-radius: 50%;
-  background: rgba(18, 16, 14, 0.5);
-  display: grid; place-items: center; font-size: 1.5rem;
-  opacity: 0; transition: opacity var(--dur) var(--ease), transform var(--dur-fast) var(--ease-spring);
+  width: 58px; height: 58px; border-radius: 50%;
+  background: rgba(18, 16, 14, 0.62);
+  display: grid; place-items: center; font-size: 1.4rem;
+  opacity: 0.92; transition: opacity var(--dur) var(--ease), transform var(--dur-fast) var(--ease-spring);
 }
-.disc-toggle:hover .ic, .disc-toggle:focus-visible .ic { opacity: 1; }
+.disc-toggle:hover .ic, .disc-toggle:focus-visible .ic { opacity: 1; transform: scale(1.06); }
 .disc-toggle:active .ic { transform: scale(0.9); }
 
 /* =============================== TRACKLIST =============================== */
@@ -443,7 +446,7 @@ body::before {
   background: var(--line-strong);
   height: var(--h, 40%);
 }
-.commentary.playing .commentary__wave i { background: var(--riso-pink); }
+.commentary__wave i.on { background: var(--riso-pink); }
 .commentary__time { font-family: var(--font-mono); font-size: var(--fs-mono-xs); color: var(--muted); }
 .commentary__label { font-family: var(--font-mono); font-size: var(--fs-mono-xs); letter-spacing: 0.16em; color: var(--muted); }
 
@@ -783,6 +786,7 @@ body.editing { overflow: hidden; }
   }
   .record.spinning { animation: none !important; }
   .tonearm { transition: none !important; }
+  .tonearm__head { animation: none !important; }
   .hero__scroll .dot { animation: none !important; }
   .hero__artist .x { animation: none !important; }
   #petals { display: none !important; }
