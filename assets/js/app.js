@@ -537,7 +537,6 @@
       icon.textContent = isPlaying ? "⏸" : "▶";
       btn.setAttribute("aria-pressed", isPlaying ? "true" : "false");
       btn.setAttribute("aria-label", isPlaying ? "Jeda lagu" : "Putar lagu");
-      setSpin(isPlaying);
     }
     btn.addEventListener("click", function () {
       if (!content.song_url) { toast("Belum ada lagu. Tambah di /edit.", true); return; }
@@ -561,23 +560,27 @@
     });
     refresh();
 
-    // "Autoplay": browsers block unprompted audio, so the looping song starts on
-    // her first interaction (tap / key / scroll) — essentially immediate. Pausable.
+    // Autoplay + loop. True unprompted autoplay is blocked by browsers unless the
+    // visitor has enough media-engagement (e.g. you, who open this often) — so we
+    // try immediately, and fall back to starting on her first interaction.
     if (content.song_url) {
-      if (!audioEl.src) audioEl.src = content.song_url; // preload="none" -> no fetch yet
+      if (!audioEl.src) audioEl.src = content.song_url;
       var started = false;
       var go = function () {
         if (started || !audioEl.paused) return;
         started = true;
         audioEl.play().catch(function () { started = false; });
       };
-      ["pointerdown", "keydown", "touchstart", "scroll"].forEach(function (ev) {
-        window.addEventListener(ev, go, { once: true, passive: true });
+      var kick = audioEl.play();
+      if (kick && kick.catch) kick.catch(function () {
+        ["pointerdown", "keydown", "touchstart", "scroll"].forEach(function (ev) {
+          window.addEventListener(ev, go, { once: true, passive: true });
+        });
       });
     }
   }
-  function setSpin(playing) {
-    var on = playing && !prefersReduced();
+  function setSpin() {
+    var on = !prefersReduced(); // records spin continuously (unless reduced motion)
     ["#hero-record", "#mini-record"].forEach(function (sel) {
       var r = $(sel); if (r) r.classList.toggle("spinning", on);
     });
@@ -1117,7 +1120,7 @@
       setupAudio();
       setupCredits();
       setupKeyboard();
-      setSpin(false); // idle spin (unless reduced motion)
+      setSpin(); // records spin (unless reduced motion)
 
       // hero entrance
       var tt = $("#hero-turntable");

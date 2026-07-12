@@ -195,7 +195,7 @@ body::before {
   align-items: center;
   gap: clamp(1.5rem, 5vw, 4rem);
 }
-.hero__titles { display: flex; flex-direction: column; gap: var(--sp-sm); min-width: 0; }
+.hero__titles { display: flex; flex-direction: column; gap: var(--sp-sm); min-width: 0; position: relative; z-index: 2; }
 .hero__artist {
   font-family: var(--font-mono);
   font-size: clamp(0.9rem, 0.75rem + 1vw, 1.4rem);
@@ -215,7 +215,7 @@ body::before {
 }
 .runtime { color: var(--paper); }
 .runtime b { font-family: var(--font-mono); color: var(--riso-blue); font-weight: 700; letter-spacing: 0.04em; }
-.hero__stage { display: grid; place-items: center; min-width: 0; }
+.hero__stage { display: grid; place-items: center; min-width: 0; position: relative; z-index: 1; }
 .hero__scroll {
   justify-self: center;
   color: var(--muted);

@@ -169,9 +169,19 @@ Without KV bound, `/photobox` loads but shows "belum diaktifkan" instead of conn
 **Caveats**
 - Needs **https** (the live site) + camera permission. Audio is off by design (no echo) —
   talk over a normal phone call while you pose.
-- Video is peer-to-peer; on most wifi it connects directly. Some strict mobile-data
-  networks need a **TURN relay** — if you can't connect, that's the fix (ask and it can
-  be added via Cloudflare's TURN).
+- Video is peer-to-peer. For it to connect **reliably across networks** (and even some
+  same-network cases, because Chrome hides local IPs and same-router "hairpin" NAT often
+  fails), it needs a **TURN relay**. Set up Cloudflare's (free tier is plenty):
+  1. Dashboard → **Realtime** (a.k.a. Calls) → **TURN** → **Create** a TURN key.
+     Copy the **Turn Token ID** (key id) and its **API token**.
+  2. Add them as Worker secrets — your Worker → **Settings → Variables and Secrets** →
+     add **`TURN_KEY_ID`** and **`TURN_TOKEN`** (both Encrypt) → **Deploy**.
+     (Or `npx wrangler secret put TURN_KEY_ID` / `npx wrangler secret put TURN_TOKEN`.)
+
+  The Worker mints short-lived TURN credentials at `/api/photobox/turn`; the photobox
+  fetches them automatically. Without the secrets it falls back to STUN + a best-effort
+  free TURN (works same-network, flaky across NAT), and shows a "needs TURN" hint if a
+  connection stalls.
 - Saving snapshots into a shared on-site gallery (instead of just downloading) is a
   follow-on — it needs image storage (R2). Download works today.
 

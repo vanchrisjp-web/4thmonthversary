@@ -122,10 +122,42 @@ export class PhotoRoom {
   }
 }
 
+// TURN credentials for the photobox. Uses Cloudflare Realtime TURN when the
+// TURN_KEY_ID + TURN_TOKEN secrets are set (reliable, global); otherwise falls
+// back to STUN + a best-effort free TURN (works same-network, flaky across NAT).
+async function handleTurn(request, env) {
+  if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
+  const google = { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] };
+  if (env.TURN_KEY_ID && env.TURN_TOKEN) {
+    try {
+      const r = await fetch(
+        "https://rtc.live.cloudflare.com/v1/turn/keys/" + env.TURN_KEY_ID + "/credentials/generate",
+        {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + env.TURN_TOKEN, "Content-Type": "application/json" },
+          body: JSON.stringify({ ttl: 86400 }),
+        }
+      );
+      if (r.ok) {
+        const d = await r.json();
+        if (d && d.iceServers) return jsonRes({ iceServers: [d.iceServers, google], turn: "cloudflare" });
+      }
+    } catch (e) {}
+  }
+  return jsonRes({
+    iceServers: [
+      google,
+      { urls: ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443", "turn:openrelay.metered.ca:443?transport=tcp"], username: "openrelayproject", credential: "openrelayproject" },
+    ],
+    turn: "fallback",
+  });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/api/content") return handleContent(request, env);
+    if (url.pathname === "/api/photobox/turn") return handleTurn(request, env);
     if (url.pathname.startsWith("/api/photobox/")) return handlePhotobox(request, env, url);
     return env.ASSETS.fetch(request);
   },

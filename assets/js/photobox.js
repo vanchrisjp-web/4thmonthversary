@@ -9,14 +9,15 @@
   var $ = function (s) { return document.querySelector(s); };
   var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
 
-  // STUN for same-network; free TURN relays so it also connects across different
-  // networks (e.g. Japan wifi <-> Indonesia mobile data).
-  var ICE = { iceServers: [
-    { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
-    { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
-    { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
-    { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" }
-  ] };
+  // ICE servers are fetched from the Worker (/api/photobox/turn), which mints
+  // Cloudflare TURN credentials server-side. STUN-only until that resolves.
+  var ICE = { iceServers: [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }] };
+  function loadIce() {
+    return fetch("/api/photobox/turn", { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { if (j && j.iceServers && j.iceServers.length) ICE = { iceServers: j.iceServers }; })
+      .catch(function () {});
+  }
 
   var pc = null, localStream = null, role = null, myCode = null;
   var connected = false, shooting = false, selectedLayout = "side", lastCanvas = null;
@@ -90,7 +91,7 @@
   function showSelf() {
     ["#selfPreview", "#selfVideo"].forEach(function (s) { var v = $(s); if (v) v.srcObject = localStream; });
   }
-  var remoteReady = false, candQueue = [], candTimers = [], candPollStop = false;
+  var remoteReady = false, candQueue = [], candTimers = [], candPollStop = false, connTimer = null;
 
   function newPC(candSlot) {
     var p = new RTCPeerConnection(ICE);
@@ -119,8 +120,16 @@
   function markConnected() {
     if (connected) return;
     connected = true;
+    clearTimeout(connTimer);
     enterSession();
     setTimeout(stopCandPolls, 4000); // grab trailing candidates, then stop
+  }
+  function armConnectTimeout() {
+    clearTimeout(connTimer);
+    connTimer = setTimeout(function () {
+      if (!connected) setStatus(role === "host" ? "#wait-status" : "#lobby-status",
+        "Masih nyoba nyambung… kalau lama, jaringan kalian perlu relay (TURN). Aktifkan Cloudflare TURN (lihat README).", true);
+    }, 22000);
   }
   function addRemoteCandidate(str) {
     var c; try { c = JSON.parse(str); } catch (e) { return; }
@@ -153,8 +162,8 @@
 
   function startHost() {
     role = "host"; myCode = rid(); remoteReady = false; candQueue = []; candPollStop = false;
-    setStatus("#lobby-status", "");
-    getMedia().then(function (stream) {
+    setStatus("#lobby-status", "Menyiapkan…");
+    loadIce().then(getMedia).then(function (stream) {
       localStream = stream; showSelf();
       pc = newPC("ca"); // host publishes its candidates to "ca"
       return pc.createOffer().then(function (o) { return pc.setLocalDescription(o); })
@@ -167,7 +176,8 @@
         .then(function (ans) {
           setStatus("#wait-status", "Tersambung, menyiapkan sesi");
           return pc.setRemoteDescription(ans).then(flushCandidates);
-        });
+        })
+        .then(armConnectTimeout);
     }).catch(handleErr);
   }
 
@@ -175,7 +185,7 @@
     if (!code) { setStatus("#lobby-status", "Masukkan kodenya dulu.", true); return; }
     role = "guest"; myCode = code; remoteReady = false; candQueue = []; candPollStop = false;
     setStatus("#lobby-status", "Menyambung ke room " + code + "…");
-    poll(code, "offer", 20000).then(function (offer) {
+    loadIce().then(function () { return poll(code, "offer", 20000); }).then(function (offer) {
       return getMedia().then(function (stream) {
         localStream = stream; showSelf();
         pc = newPC("cb"); // guest publishes its candidates to "cb"
