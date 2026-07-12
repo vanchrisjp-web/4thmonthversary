@@ -23,7 +23,16 @@ compatibility_date = "2024-11-01"
 directory = "."
 binding = "ASSETS"
 
-# --- KV: content publishing (Mode B) + photobox room signaling ---
+# --- KV: content publishing (Mode B) ---
 [[kv_namespaces]]
 binding = "CONTENT"
 id = "2bd46815489442c4a28e0507d67a377b"
+
+# --- Durable Object: photobox room signaling (instant, strongly consistent) ---
+[[durable_objects.bindings]]
+name = "PHOTOROOM"
+class_name = "PhotoRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["PhotoRoom"]

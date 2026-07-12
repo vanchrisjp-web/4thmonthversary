@@ -58,31 +58,20 @@ async function handleContent(request, env) {
   return new Response("Method Not Allowed", { status: 405, headers: CORS });
 }
 
-// --- Photobooth signaling (Mode B / KV) -------------------------------------
-// A room is just two slots in KV — the host's offer and the guest's answer
-// (vanilla ICE: each side gathers candidates into its SDP before posting, so
-// the whole handshake is two writes + a little polling). Keys expire in 10 min.
+// --- Photobooth signaling via a Durable Object -----------------------------
+// One room = one DO instance. DO storage is strongly consistent and instant, so
+// the offer/answer handshake is NOT delayed by KV's 60s read cache (which made
+// the host wait up to a minute for the guest's answer). Vanilla ICE: each side
+// gathers candidates into its SDP before posting.
 async function handlePhotobox(request, env, url) {
   if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
-  if (!env.CONTENT) return jsonRes({ error: "kv_not_set" }, 503);
+  if (!env.PHOTOROOM) return jsonRes({ error: "kv_not_set" }, 503); // client treats as "not enabled"
   const parts = url.pathname.split("/").filter(Boolean); // api, photobox, <room>, <slot>
   const room = (parts[2] || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
   const slot = parts[3];
   if (!room || (slot !== "offer" && slot !== "answer")) return jsonRes({ error: "bad_request" }, 400);
-  const key = "pb:" + room + ":" + (slot === "offer" ? "o" : "a");
-
-  if (request.method === "POST" || request.method === "PUT") {
-    const body = await request.text();
-    if (body.length > 120000) return jsonRes({ error: "too_large" }, 413);
-    await env.CONTENT.put(key, body, { expirationTtl: 600 });
-    return jsonRes({ ok: true });
-  }
-  if (request.method === "GET") {
-    const v = await env.CONTENT.get(key);
-    if (!v) return jsonRes({ pending: true });
-    return new Response(v, { headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" } });
-  }
-  return jsonRes({ error: "method" }, 405);
+  const id = env.PHOTOROOM.idFromName(room);
+  return env.PHOTOROOM.get(id).fetch(request);
 }
 
 function jsonRes(obj, status) {
@@ -90,6 +79,29 @@ function jsonRes(obj, status) {
     status: status || 200,
     headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
+}
+
+// The room: holds the offer + answer, strongly consistent, instant reads.
+export class PhotoRoom {
+  constructor(state) { this.state = state; }
+  async fetch(request) {
+    const url = new URL(request.url);
+    const parts = url.pathname.split("/").filter(Boolean);
+    const slot = parts[parts.length - 1]; // offer | answer
+    if (slot !== "offer" && slot !== "answer") return jsonRes({ error: "bad_request" }, 400);
+    if (request.method === "POST" || request.method === "PUT") {
+      const body = await request.text();
+      if (body.length > 120000) return jsonRes({ error: "too_large" }, 413);
+      await this.state.storage.put(slot, body);
+      return jsonRes({ ok: true });
+    }
+    if (request.method === "GET") {
+      const v = await this.state.storage.get(slot);
+      if (!v) return jsonRes({ pending: true });
+      return new Response(v, { headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+    }
+    return jsonRes({ error: "method" }, 405);
+  }
 }
 
 export default {

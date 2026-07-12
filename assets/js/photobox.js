@@ -9,7 +9,14 @@
   var $ = function (s) { return document.querySelector(s); };
   var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
 
-  var ICE = { iceServers: [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }] };
+  // STUN for same-network; free TURN relays so it also connects across different
+  // networks (e.g. Japan wifi <-> Indonesia mobile data).
+  var ICE = { iceServers: [
+    { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+    { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+    { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+    { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" }
+  ] };
 
   var pc = null, localStream = null, role = null, myCode = null;
   var connected = false, shooting = false, selectedLayout = "side", lastCanvas = null;
@@ -63,7 +70,7 @@
           if (o.r.status === 503 || o.j.error === "kv_not_set") throw new Error("kv");
           if (o.j && o.j.type && o.j.sdp) return o.j;
           if (Date.now() - t0 > timeoutMs) throw new Error("timeout");
-          return wait(1500).then(loop);
+          return wait(1000).then(loop);
         });
     })();
   }
@@ -86,19 +93,24 @@
       var rv = $("#remoteVideo"); if (rv) rv.srcObject = e.streams[0];
       var off = $("#remote-off"); if (off) off.style.display = "none";
     };
+    function markConnected() { if (!connected) { connected = true; enterSession(); } }
     p.onconnectionstatechange = function () {
       var st = p.connectionState;
       setStatus("#session-status", "Status: " + st);
-      if (st === "connected" && !connected) { connected = true; enterSession(); }
+      if (st === "connected") markConnected();
       if (st === "failed") setStatus("#session-status",
-        "Gagal menyambung. Jaringan mungkin butuh relay (TURN) — coba wifi yang sama dulu.", true);
+        "Gagal menyambung. Coba lagi — kalau tetap gagal, jaringan salah satu perlu relay lain.", true);
+    };
+    p.oniceconnectionstatechange = function () {
+      var st = p.iceConnectionState;
+      if (st === "connected" || st === "completed") markConnected();
     };
     return p;
   }
   function waitIce(p) {
     if (p.iceGatheringState === "complete") return Promise.resolve();
     return new Promise(function (res) {
-      var to = setTimeout(res, 3500);
+      var to = setTimeout(res, 5000);
       p.addEventListener("icegatheringstatechange", function h() {
         if (p.iceGatheringState === "complete") { clearTimeout(to); p.removeEventListener("icegatheringstatechange", h); res(); }
       });
@@ -123,7 +135,10 @@
           showWaiting(myCode);
           return poll(myCode, "answer", 300000);
         })
-        .then(function (ans) { return pc.setRemoteDescription(ans); });
+        .then(function (ans) {
+          setStatus("#wait-status", "Tersambung, menyiapkan sesi");
+          return pc.setRemoteDescription(ans);
+        });
     }).catch(handleErr);
   }
 

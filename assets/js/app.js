@@ -532,6 +532,7 @@
   // --------------------------------------------------------------- audio / now playing
   function setupAudio() {
     var btn = $("#playbtn"), icon = $("#playbtn-icon");
+    audioEl.loop = true; // song repeats after it finishes
     function refresh() {
       icon.textContent = isPlaying ? "⏸" : "▶";
       btn.setAttribute("aria-pressed", isPlaying ? "true" : "false");
@@ -548,6 +549,21 @@
     audioEl.addEventListener("pause", function () { isPlaying = false; refresh(); });
     audioEl.addEventListener("ended", function () { isPlaying = false; refresh(); });
     refresh();
+
+    // "Autoplay": browsers block unprompted audio, so the looping song starts on
+    // her first interaction (tap / key / scroll) — essentially immediate. Pausable.
+    if (content.song_url) {
+      if (!audioEl.src) audioEl.src = content.song_url; // preload="none" -> no fetch yet
+      var started = false;
+      var go = function () {
+        if (started || !audioEl.paused) return;
+        started = true;
+        audioEl.play().catch(function () { started = false; });
+      };
+      ["pointerdown", "keydown", "touchstart", "scroll"].forEach(function (ev) {
+        window.addEventListener(ev, go, { once: true, passive: true });
+      });
+    }
   }
   function setSpin(fast) {
     if (prefersReduced()) { spinOff(); return; }
@@ -836,6 +852,7 @@
             (t.photo ? "<button class='btn' data-act='delphoto' type='button'>Hapus foto</button>" : "") +
           "</div>" +
           "<div class='uploader'><span class='uploader__label'>Catatan suara</span>" +
+            "<textarea class='field' data-f='prompt' rows='2' placeholder='Prompt buat dibaca pas rekam…'>" + esc(t.prompt) + "</textarea>" +
             recorderUI(t) +
           "</div>" +
         "</div>";
@@ -863,6 +880,8 @@
       card.querySelector("[data-f='title']").addEventListener("input", function () { content.tracks[i].title = this.value; });
       card.querySelector("[data-f='date']").addEventListener("input", function () { content.tracks[i].date = this.value; });
       card.querySelector("[data-f='story']").addEventListener("input", function () { content.tracks[i].story = this.value; });
+      var pf = card.querySelector("[data-f='prompt']");
+      if (pf) pf.addEventListener("input", function () { content.tracks[i].prompt = this.value; });
       card.querySelector("[data-f='photo']").addEventListener("change", function (e) {
         var f = e.target.files[0]; if (!f) return;
         downscaleImage(f).then(function (d) { content.tracks[i].photo = d; renderTracks(); checkSize(); });

@@ -20,28 +20,28 @@ window.SIDE_A_DEFAULTS = {
 
   liner_notes:
     "Sayang,\n\n" +
-    "Aku nggak pinter nulis surat, jadi aku bikin yang ini aja. Anggap ini sisi A dari sesuatu yang aku harap panjang. Empat bulan kedengerannya sebentar, tapi entah kenapa berasa kayak aku udah lama kenal kamu.\n\n" +
-    "Aku suka hal-hal kecil yang kamu nggak sadar kamu lakuin. Cara kamu inget hal yang aku sendiri lupa. Cara kamu bilang hati-hati tiap aku pulang. Aku ngerekam semuanya diam-diam, jadi ada di sini semua, jadi lagu, jadi track.\n\n" +
-    "Aku nggak janji semuanya bakal mulus. Tapi aku janji bakal terus nekan tombol rekam. Setiap bulan aku bakal tambahin track baru di sini, sampai sisinya penuh, terus kita balik ke sisi B.\n\n" +
-    "Makasih udah mau jadi pendengar satu-satunya.",
+    "Aku nggak pinter nulis surat, jadi aku bikin yang ini aja. Anggap ini sisi A dari sesuatu yang aku harap panjang. Empat bulan, dua negara, dan entah kenapa berasa kayak kamu selalu deket.\n\n" +
+    "Aku suka hal-hal kecil yang kamu nggak sadar kamu lakuin. Cara kamu tetep nyalain kamera walau udah ngantuk. Cara kamu bilang selamat malam padahal di aku belum malam. Aku ngerekam semuanya diam-diam, jadi ada di sini semua, jadi lagu, jadi track.\n\n" +
+    "Jarak emang nggak gampang. Tapi tiap minggu kita bikin dunia sendiri: main game bareng, nonton bareng, makan bareng lewat layar. Aku janji bakal terus nekan tombol rekam, sampai kita nggak perlu layar lagi buat deket.\n\n" +
+    "Makasih udah mau jadi pendengar satu-satunya, walau dari sejauh ini.",
 
   tracks: [
-    { n: 1,  title: "Awal Sisi A",        date: "2026-03-17", story: "Hari kita mutusin buat mulai. Aku inget gugupnya lebih jelas daripada kata-katanya.", photo: "", commentary: "" },
-    { n: 2,  title: "Chat Sampai Subuh",  date: "2026-03-21", story: "Ngobrol sampai lupa waktu, terus baru sadar besok dua-duanya ada kelas pagi.", photo: "", commentary: "" },
-    { n: 3,  title: "Ketemu Pertama",     date: "2026-03-28", story: "Pertama kali ketemu langsung. Aku dateng kepagian, kamu dateng pas, dan itu udah kayak kita banget.", photo: "", commentary: "" },
-    { n: 4,  title: "Hujan Bulan Maret",  date: "2026-03-31", story: "Kehujanan bareng, nunggu redanya sambil pura-pura nggak buru-buru pulang.", photo: "", commentary: "" },
-    { n: 5,  title: "Kopi Kependinginan", date: "2026-04-08", story: "Ngobrol kelamaan sampai kopinya dingin dua-duanya. Nggak ada yang protes.", photo: "", commentary: "" },
-    { n: 6,  title: "Playlist Berdua",    date: "2026-04-15", story: "Mulai satu playlist yang isinya lagu-lagu yang cuma ngerti kalau kamu yang jelasin.", photo: "", commentary: "" },
-    { n: 7,  title: "Jalan Kaki Kelamaan",date: "2026-04-22", story: "Niatnya sebentar, malah muter-muter cuma biar belum harus pisah.", photo: "", commentary: "" },
-    { n: 8,  title: "Ketawa Nggak Jelas", date: "2026-05-02", story: "Ketawa gara-gara hal yang kalau diceritain ke orang pasti garing. Tapi kita ngerti.", photo: "", commentary: "" },
-    { n: 9,  title: "Nonton yang Ketiduran", date: "2026-05-11", story: "Niat nonton sampai habis, kamu ketiduran di menit dua puluh dan aku nggak tega ganti film.", photo: "", commentary: "" },
-    { n: 10, title: "Ujan-ujanan",        date: "2026-05-20", story: "Sengaja nggak pakai payung sekali-kali. Ternyata seru, walau besoknya pilek.", photo: "", commentary: "" },
-    { n: 11, title: "Berantem Pertama",   date: "2026-05-29", story: "Track yang paling susah aku masukin. Tapi ini bagian dari albumnya juga.", photo: "", commentary: "" },
-    { n: 12, title: "Baikan di Chat",     date: "2026-05-30", story: "Besoknya kita baikan lewat pesan panjang. Aku simpan yang itu.", photo: "", commentary: "" },
-    { n: 13, title: "Foto yang Blur",     date: "2026-06-09", story: "Foto paling jelek, mata merem dua-duanya, tapi entah kenapa yang ini yang aku suka.", photo: "", commentary: "" },
-    { n: 14, title: "Rencana Kecil",      date: "2026-06-19", story: "Mulai ngomongin hal-hal 'nanti kita', walau baru sebatas mau jajan di mana.", photo: "", commentary: "" },
-    { n: 15, title: "Malam Panjang",      date: "2026-06-30", story: "Salah satu malam yang aku harap nggak buru-buru pagi.", photo: "", commentary: "" },
-    { n: 16, title: "Bulan Keempat",      date: "2026-07-17", story: "Sampai di sini. Empat bulan. Masih di sisi A, masih banyak ruang kosong buat diisi.", photo: "", commentary: "" }
+    { n: 1, title: "Ketemu di Dunia Maya", date: "2026-03-17", story: "Kita ketemu bukan di tempat, tapi di layar. Dan entah kenapa itu udah cukup buat aku.", photo: "", commentary: "", prompt: "Hai kamu. Nggak ada alasan, aku cuma lagi inget kamu. Aku sayang sama kamu." },
+    { n: 2, title: "Video Call Pertama", date: "2026-03-24", story: "Gugup banget pas pertama lihat kamu langsung, walau lewat kamera. Sinyal jelek, tapi nggak ada yang mau nutup duluan.", photo: "", commentary: "", prompt: "Gugup ya pas pertama lihat kamu di kamera. Aku suka sama kamu, dari dulu." },
+    { n: 3, title: "Beda Dua Jam", date: "2026-03-31", story: "Aku di Jepang, kamu di Indonesia. Aku duluan dua jam. Jadi aku sering nungguin kamu nyusul ke jam yang sama.", photo: "", commentary: "", prompt: "Beda dua jam, tapi aku selalu nungguin kamu. Aku kangen sama kamu." },
+    { n: 4, title: "It Takes Two", date: "2026-04-07", story: "Main It Takes Two bareng. Berantem dikit pas puzzle-nya susah, terus ketawa lagi. Katanya game buat berdua — cocok.", photo: "", commentary: "", prompt: "Main berdua emang suka berantem, tapi aku nggak mau main sama siapa-siapa selain kamu." },
+    { n: 5, title: "Overcooked, Kacau", date: "2026-04-14", story: "Overcooked bikin kita teriak-teriak. Dapur virtualnya berantakan, tapi ketawa kita nyata.", photo: "", commentary: "", prompt: "Kamu bikin hal kacau jadi lucu. Aku sayang kamu, apa adanya kamu." },
+    { n: 6, title: "Moving Out", date: "2026-04-21", story: "Angkat-angkat sofa virtual bareng. Nggak efisien sama sekali, tapi seru. Kayak kita mindahin hidup pelan-pelan biar muat berdua.", photo: "", commentary: "", prompt: "Pelan-pelan kita mindahin hidup biar muat berdua. Aku cinta sama kamu." },
+    { n: 7, title: "Nonton Anime Bareng", date: "2026-04-28", story: "Pencet play barengan, hitung mundur tiga-dua-satu. Nonton anime sambil komentar nggak jelas di chat.", photo: "", commentary: "", prompt: "Pencet play bareng ya. Aku suka nonton apa aja asal sama kamu." },
+    { n: 8, title: "Makan Malam Berdua", date: "2026-05-05", story: "Makan malam bareng, tapi lewat layar. Kamu makan di jam kamu, aku di jam aku. Tetep berasa satu meja.", photo: "", commentary: "", prompt: "Makan malam bareng walau lewat layar. Selamat makan, sayang. Aku sayang kamu." },
+    { n: 9, title: "Nonton Film, Ketiduran", date: "2026-05-12", story: "Niat nonton film sampai habis. Kamu ketiduran di tengah, aku biarin, nggak tega matiin call-nya.", photo: "", commentary: "", prompt: "Kamu ketiduran pas nonton, dan aku nggak tega nutup call-nya. Aku cinta kamu." },
+    { n: 10, title: "Cerita Sampai Subuh", date: "2026-05-19", story: "Cerita apa aja sampai subuh. Hal kecil, hal random, hal yang cuma penting buat kita berdua.", photo: "", commentary: "", prompt: "Cerita sampai subuh sama kamu itu favorit aku. Aku jatuh cinta lagi sama kamu." },
+    { n: 11, title: "Berantem Jarak Jauh", date: "2026-05-26", story: "Berantem itu lebih susah pas jauh. Nggak bisa peluk buat baikan. Tapi kita tetep milih ngobrol sampai selesai.", photo: "", commentary: "", prompt: "Berantem jarak jauh susah. Tapi aku tetep milih kamu. Maaf ya, aku sayang kamu." },
+    { n: 12, title: "Baikan Lewat Layar", date: "2026-06-02", story: "Besoknya kita baikan. Lewat pesan panjang dan video call yang aku simpan diam-diam.", photo: "", commentary: "", prompt: "Makasih udah mau baikan. Aku sayang kamu, lebih dari kemarin." },
+    { n: 13, title: "Kangen yang Beda", date: "2026-06-09", story: "Kangen versi LDR itu beda. Bukan cuma pengen ketemu — pengen ada di zona waktu yang sama.", photo: "", commentary: "", prompt: "Kangen versi kita itu beda, pengen di zona waktu yang sama. Aku rindu sama kamu." },
+    { n: 14, title: "Rencana Ketemu", date: "2026-06-16", story: "Mulai ngitung-ngitung. Kapan aku bisa ke sana, atau kamu ke sini. Belum pasti, tapi kita simpan mimpinya.", photo: "", commentary: "", prompt: "Nanti kita ketemu, aku janji. Aku punya kamu, dan itu udah cukup." },
+    { n: 15, title: "Call yang Nggak Ditutup", date: "2026-06-30", story: "Salah satu malam, call-nya nggak ditutup sampai pagi. Cuma diem, kadang ngobrol. Berasa tidur bareng walau beda negara.", photo: "", commentary: "", prompt: "Malam ini call-nya nggak usah ditutup ya. Aku di sini. Aku sayang kamu." },
+    { n: 16, title: "Bulan Keempat", date: "2026-07-17", story: "Empat bulan, dua negara, satu layar yang selalu nyala. Masih di sisi A, masih banyak yang mau kita rekam.", photo: "", commentary: "", prompt: "Empat bulan, dua negara, satu layar. Aku cinta sama kamu, sekarang dan nanti." }
   ],
 
   hidden_track: {
