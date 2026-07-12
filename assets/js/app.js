@@ -265,7 +265,20 @@
       var frac = dur ? au.currentTime / dur : 0, active = Math.round(frac * N);
       for (var i = 0; i < N; i++) bars[i].classList.toggle("on", i < active);
     }
-    au.addEventListener("loadedmetadata", function () { if (isFinite(au.duration)) dur = au.duration; showTime(); });
+    au.addEventListener("loadedmetadata", function () {
+      if (isFinite(au.duration) && au.duration > 0) { dur = au.duration; showTime(); return; }
+      // recorded webm/opus reports duration=Infinity — force the browser to compute it
+      var fix = function () {
+        if (isFinite(au.duration)) {
+          dur = au.duration;
+          au.removeEventListener("durationchange", fix);
+          try { au.currentTime = 0; } catch (e) {}
+          showTime();
+        }
+      };
+      au.addEventListener("durationchange", fix);
+      try { au.currentTime = 1e101; } catch (e) {}
+    });
     au.addEventListener("timeupdate", function () { showTime(); paint(); });
     function reset() {
       node.classList.remove("playing"); btn.textContent = "⏵";
@@ -280,7 +293,7 @@
     btn.addEventListener("click", function () { if (au.paused) au.play().catch(function () {}); else au.pause(); });
     showTime();
   }
-  function fmtClock(sec) { sec = Math.floor(sec || 0); return Math.floor(sec / 60) + ":" + pad(sec % 60); }
+  function fmtClock(sec) { sec = (isFinite(sec) && sec > 0) ? Math.floor(sec) : 0; return Math.floor(sec / 60) + ":" + pad(sec % 60); }
 
   function hiddenTrackEl(n) {
     var ht = content.hidden_track || {};
@@ -549,13 +562,25 @@
   function setupAudio() {
     var btn = $("#playbtn"), icon = $("#playbtn-icon");
     audioEl.loop = true; // song repeats after it finishes
-    var audioUnlocked = false;
+    var audioUnlocked = false, fadeTimer = null;
+    function fadeVolume(target, ms, done) {
+      if (fadeTimer) { clearInterval(fadeTimer); fadeTimer = null; }
+      target = Math.max(0, Math.min(1, target));
+      var from = audioEl.volume, steps = Math.max(1, Math.round(ms / 30)), i = 0;
+      fadeTimer = setInterval(function () {
+        i++;
+        audioEl.volume = Math.max(0, Math.min(1, from + (target - from) * (i / steps)));
+        if (i >= steps) { clearInterval(fadeTimer); fadeTimer = null; if (done) done(); }
+      }, 30);
+    }
     function unlockAudio() {
       if (audioUnlocked) return;
       audioUnlocked = true;
       audioEl.muted = false;
       try { audioEl.currentTime = 0; } catch (e) {}
-      if (audioEl.paused) audioEl.play().catch(function () {});
+      audioEl.volume = 0;
+      if (audioEl.paused) audioEl.play().then(function () { fadeVolume(1, 700); }).catch(function () { fadeVolume(1, 700); });
+      else fadeVolume(1, 700); // muted autoplay already running -> fade the sound in
     }
     function refresh() {
       icon.textContent = isPlaying ? "⏸" : "▶";
@@ -569,8 +594,12 @@
       if (!content.song_url) { toast("Belum ada lagu. Tambah di /edit.", true); return; }
       if (!audioEl.src) audioEl.src = content.song_url;
       if (!audioUnlocked) { unlockAudio(); return; } // first tap unmutes the autoplaying song
-      if (audioEl.paused) { audioEl.play().catch(function () { toast("Gagal memutar audio.", true); }); }
-      else audioEl.pause();
+      if (audioEl.paused) {
+        audioEl.volume = 0;
+        audioEl.play().then(function () { fadeVolume(1, 450); }).catch(function () { toast("Gagal memutar audio.", true); });
+      } else {
+        fadeVolume(0, 450, function () { audioEl.pause(); audioEl.volume = 1; }); // fade out, then pause
+      }
     }
     btn.addEventListener("click", togglePlay);
     var discToggle = $("#disc-toggle"); if (discToggle) discToggle.addEventListener("click", togglePlay);
@@ -744,7 +773,7 @@
   var Editor = (function () {
     var root = $("#edit");
     var unlocked = false;
-    var mediaRecorder = null, recChunks = [], recStart = 0, recTimer = null, recStream = null;
+    var mediaRecorder = null, recChunks = [], recStart = 0, recTimer = null, recStream = null, recStarting = false;
 
     function open() {
       root.classList.add("on");
@@ -940,9 +969,22 @@
 
     // ---- voice recording ----
     function startRecording(card, i) {
-      if (mediaRecorder) return;
-      navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      if (mediaRecorder || recStarting) return;
+      recStarting = true;
+      var recEl = $(".rec", card);
+      var recBtn = $("[data-act='rec']", card), stopBtn = $("[data-act='stop']", card);
+      if (recEl) recEl.classList.add("live");        // immediate feedback, before the mic resolves
+      if (recBtn) recBtn.hidden = true;
+      if (stopBtn) stopBtn.hidden = false;
+      var tm0 = $(".rec__time", card); if (tm0) tm0.textContent = "0:00";
+      // reuse an already-open mic so re-records start instantly; only getUserMedia the first time
+      var need = (recStream && recStream.active)
+        ? Promise.resolve(recStream)
+        : navigator.mediaDevices.getUserMedia({ audio: true });
+      need.then(function (stream) {
         recStream = stream;
+        recStarting = false;
+        if (!stopBtn || stopBtn.hidden) return;      // Stop was hit before the mic was ready
         var mime = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg", "audio/mp4"].filter(function (m) {
           return window.MediaRecorder.isTypeSupported(m);
         })[0] || "";
@@ -950,33 +992,36 @@
         mediaRecorder = mr;
         recChunks = [];
         mr.ondataavailable = function (e) { if (e.data && e.data.size) recChunks.push(e.data); };
-        mr.onstop = function () { // use local mr — stopRecording() nulls the module var before this async fires
+        mr.onstop = function () { // local mr — stopRecording() nulls the module var before this async fires
           var blob = new Blob(recChunks, { type: mr.mimeType || mime || "audio/webm" });
           blobToDataURL(blob).then(function (d) {
             content.tracks[i].commentary = d; renderTracks(); checkSize();
             toast("Rekaman tersimpan. Jangan lupa Save atau Export.");
           });
-          cleanupStream();
-        };
-        var rec = $(".rec", card);
-        rec.classList.add("live");
-        $("[data-act='rec']", card).hidden = true;
-        $("[data-act='stop']", card).hidden = false;
+        }; // recStream stays open for instant re-records; released on editor close
         recStart = Date.now();
-        mediaRecorder.start();
+        mr.start();
         recTimer = setInterval(function () {
           var s = Math.floor((Date.now() - recStart) / 1000);
           var tm = $(".rec__time", card); if (tm) tm.textContent = fmtClock(s);
           if (s >= 60) stopRecording();
         }, 250);
-      }).catch(function () { toast("Tidak bisa akses mikrofon.", true); });
+      }).catch(function () {
+        recStarting = false;
+        if (recEl) recEl.classList.remove("live");
+        if (recBtn) recBtn.hidden = false;
+        if (stopBtn) stopBtn.hidden = true;
+        toast("Tidak bisa akses mikrofon. Izinkan mic di browser.", true);
+      });
     }
     function stopRecording(silent) {
+      recStarting = false;
       if (recTimer) { clearInterval(recTimer); recTimer = null; }
       if (mediaRecorder && mediaRecorder.state !== "inactive") {
         try { mediaRecorder.stop(); } catch (e) {}
-      } else if (silent) { cleanupStream(); }
+      }
       mediaRecorder = null;
+      if (silent) cleanupStream(); // release the mic only when leaving the editor
     }
     function cleanupStream() { if (recStream) { recStream.getTracks().forEach(function (t) { t.stop(); }); recStream = null; } }
 
