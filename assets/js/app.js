@@ -1120,7 +1120,7 @@
           toast("Tersimpan di perangkat ini. Gagal terbit — gunakan Export.", true);
         });
       } else {
-        toast("Tersimpan di perangkat ini. Preview aktif.");
+        toast("Tersimpan di perangkat ini SAJA (belum online). Isi 'Token terbit (KV)' di Master biar terbit buat semua.", true);
       }
       checkSize();
     }
