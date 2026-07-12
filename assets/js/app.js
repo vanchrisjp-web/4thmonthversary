@@ -1226,28 +1226,86 @@
     }
 
     // ---- save / export ----
-    function currentSize() { try { return new Blob([JSON.stringify(content)]).size; } catch (e) { return JSON.stringify(content).length; } }
+    // Effective persisted size ignores inline media — those get uploaded to KV,
+    // not stored in the content blob.
+    function currentSize() {
+      try {
+        var s = JSON.stringify(content, function (k, v) {
+          return (typeof v === "string" && v.indexOf("data:") === 0) ? "data:" : v;
+        });
+        return new Blob([s]).size;
+      } catch (e) { return 0; }
+    }
     function checkSize() {
       var mb = currentSize() / 1048576;
-      if (mb > 4) toast("Perhatian: konten " + mb.toFixed(1) + "MB (>4MB). Kecilkan foto/suara.", true);
+      if (mb > 4) toast("Perhatian: teks konten " + mb.toFixed(1) + "MB (>4MB).", true);
+    }
+
+    // Media lives in KV as its own file; the content blob only keeps URLs.
+    function isDataUrl(v) { return typeof v === "string" && v.indexOf("data:") === 0; }
+    function eachMediaField(fn) {
+      (content.tracks || []).forEach(function (t) { fn(t, "photo"); fn(t, "commentary"); });
+      if (content.hidden_track) { fn(content.hidden_track, "photo"); fn(content.hidden_track, "commentary"); }
+      fn(content, "song_url");
+    }
+    function hasInlineMedia() {
+      var found = false;
+      eachMediaField(function (obj, key) { if (isDataUrl(obj[key])) found = true; });
+      return found;
+    }
+    function uploadMedia(blob, ct, token) {
+      return fetch("/api/media", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + token, "Content-Type": ct || "application/octet-stream" },
+        body: blob
+      }).then(function (r) { if (!r.ok) throw new Error("upload " + r.status); return r.json(); })
+        .then(function (j) { if (!j || !j.url) throw new Error("no url"); return j.url; });
+    }
+    // Upload every embedded photo/recording, replacing each data: URL in-place
+    // with its hosted /api/media URL. Resolves with the count moved online.
+    function migrateInlineMedia(token) {
+      var jobs = [], moved = 0, failed = 0;
+      eachMediaField(function (obj, key) {
+        if (!isDataUrl(obj[key])) return;
+        var val = obj[key];
+        jobs.push(
+          fetch(val).then(function (r) { return r.blob(); })
+            .then(function (b) { return uploadMedia(b, b.type, token); })
+            .then(function (u) { obj[key] = u; moved++; })
+            .catch(function () { failed++; })
+        );
+      });
+      return Promise.all(jobs).then(function () { return { moved: moved, failed: failed }; });
     }
     function save() {
-      try { localStorage.setItem(LS_CONTENT, JSON.stringify(content)); }
-      catch (e) { toast("Gagal simpan lokal (penyimpanan penuh?).", true); return; }
-      applyLive();
       var token = localStorage.getItem(LS_TOKEN);
       var http = /^https?:/.test(location.protocol);
+      if (token && http && hasInlineMedia()) {
+        toast("Mengunggah foto & suara ke online…");
+        migrateInlineMedia(token).then(function (res) {
+          persist(token, http, res.failed);
+        }).catch(function () { persist(token, http, 1); });
+      } else {
+        persist(token, http, 0);
+      }
+    }
+    function persist(token, http, failed) {
+      var localOk = true;
+      try { localStorage.setItem(LS_CONTENT, JSON.stringify(content)); }
+      catch (e) { localOk = false; }
+      applyLive();
       if (token && http) {
         fetch("/api/content", {
           method: "PUT",
           headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
           body: JSON.stringify(content)
         }).then(function (r) {
-          if (r.ok) toast("Tersimpan & terbit untuk semua.");
-          else toast("Tersimpan di perangkat ini. Gagal terbit — gunakan Export.", true);
-        }).catch(function () {
-          toast("Tersimpan di perangkat ini. Gagal terbit — gunakan Export.", true);
-        });
+          if (!r.ok) { toast("Gagal terbit (" + r.status + "). Cek token di Master.", true); return; }
+          if (failed) toast("Terbit online ✓, tapi " + failed + " media gagal diunggah — coba Save lagi.", true);
+          else toast(localOk ? "Tersimpan & terbit untuk semua ✓" : "Terbit online ✓ (media aman di server).");
+        }).catch(function () { toast("Gagal terbit — jaringan. Coba lagi.", true); });
+      } else if (!localOk) {
+        toast("Perangkat penuh & belum online. Isi 'Token terbit (KV)' di Master untuk unggah online.", true);
       } else {
         toast("Tersimpan di perangkat ini SAJA (belum online). Isi 'Token terbit (KV)' di Master biar terbit buat semua.", true);
       }

@@ -190,12 +190,53 @@ async function handleAlbum(request, env, url) {
   return jsonRes({ error: "bad_request" }, 400);
 }
 
+// Media store for editor content (track photos + voice notes), backed by KV so
+// the content JSON stays tiny (URLs, not base64). POST (auth) saves a blob under
+// media:<name> with its content-type; GET serves it. Keeps localStorage + the
+// KV content value small and loads fast for everyone.
+function editAuthorized(request, env) {
+  const auth = request.headers.get("Authorization") || "";
+  const token = auth.replace(/^Bearer\s+/i, "").trim();
+  return !!env.EDIT_TOKEN && token === env.EDIT_TOKEN;
+}
+async function handleMedia(request, env, url) {
+  if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
+  if (!env.CONTENT) return jsonRes({ error: "kv_not_set" }, 503);
+
+  const m = url.pathname.match(/^\/api\/media\/(.+)$/);
+  if (m && request.method === "GET") {
+    const obj = await env.CONTENT.getWithMetadata("media:" + m[1], { type: "arrayBuffer" });
+    if (!obj || !obj.value) return new Response("Not found", { status: 404, headers: CORS });
+    const h = new Headers(CORS);
+    h.set("Content-Type", (obj.metadata && obj.metadata.ct) || "application/octet-stream");
+    h.set("Cache-Control", "public, max-age=31536000, immutable");
+    return new Response(obj.value, { headers: h });
+  }
+  if (m && request.method === "DELETE") {
+    if (!editAuthorized(request, env)) return jsonRes({ error: "unauthorized" }, 401);
+    await env.CONTENT.delete("media:" + m[1]);
+    return jsonRes({ ok: true, deleted: m[1] });
+  }
+  if (url.pathname === "/api/media" && (request.method === "POST" || request.method === "PUT")) {
+    if (!editAuthorized(request, env)) return jsonRes({ error: "unauthorized" }, 401);
+    const ct = request.headers.get("Content-Type") || "application/octet-stream";
+    const buf = await request.arrayBuffer();
+    if (buf.byteLength > 20 * 1024 * 1024) return jsonRes({ error: "too_large" }, 413);
+    const kind = ct.indexOf("audio") === 0 ? "aud" : ct.indexOf("image") === 0 ? "img" : "bin";
+    const name = kind + "-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+    await env.CONTENT.put("media:" + name, buf, { metadata: { ct: ct } });
+    return jsonRes({ ok: true, name: name, url: "/api/media/" + name });
+  }
+  return jsonRes({ error: "bad_request" }, 400);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/api/content") return handleContent(request, env);
     if (url.pathname === "/api/photobox/turn") return handleTurn(request, env);
     if (url.pathname === "/api/album" || url.pathname.startsWith("/api/album/")) return handleAlbum(request, env, url);
+    if (url.pathname === "/api/media" || url.pathname.startsWith("/api/media/")) return handleMedia(request, env, url);
     if (url.pathname.startsWith("/api/photobox/")) return handlePhotobox(request, env, url);
     return env.ASSETS.fetch(request);
   },
