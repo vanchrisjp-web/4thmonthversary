@@ -1,0 +1,9 @@
+# Cloudflare Pages headers — keep content fresh, cache heavy audio hard.
+/content.json
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/assets/*
+  Cache-Control: no-cache
+/audio/*
+  Cache-Control: public, max-age=31536000, immutable

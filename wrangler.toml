@@ -1,0 +1,22 @@
+# Cloudflare Pages configuration.
+#
+# Mode A (static hosting) works with this file exactly as-is — the site serves
+# from the repo root and the editor SAVE writes to localStorage / EXPORT.
+#
+# Mode B (optional): let SAVE in /#edit publish for everyone via a KV namespace.
+#   1. npx wrangler kv namespace create CONTENT
+#   2. Uncomment the [[kv_namespaces]] block below and paste the id.
+#   3. Set the write password as an encrypted secret (NOT here):
+#        npx wrangler pages secret put EDIT_TOKEN
+#   4. In /#edit -> Master -> "Token terbit (KV)", paste the same value.
+#
+# Leaving the KV block commented keeps the API at /api/content returning 404,
+# which the site treats as "fall back to content.json" — so Mode A never breaks.
+
+name = "side-a"
+pages_build_output_dir = "."
+
+# --- Mode B only ---
+# [[kv_namespaces]]
+# binding = "CONTENT"
+# id = "<your_namespace_id>"

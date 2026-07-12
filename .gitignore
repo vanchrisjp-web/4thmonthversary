@@ -1,0 +1,10 @@
+node_modules/
+.wrangler/
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+
+# design-skills reference library that was dropped into the folder — not part of the site
+claudedesignskills-main/
+claudedesignskills-main.zip

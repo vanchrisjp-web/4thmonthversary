@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Side A — YS-004</title>
+  <meta name="description" content="Sebuah rekaman monthsversary. 16 track, 100 alasan, satu surat. Ditekan untuk satu pendengar.">
+  <meta name="theme-color" content="#12100E">
+  <meta name="robots" content="noindex">
+  <!-- record-shaped favicon (inline, no request) -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%2312100E'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%239A958C' stroke-width='0.6'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%23FF4A7D'/%3E%3Ccircle cx='16' cy='16' r='1' fill='%2312100E'/%3E%3C/svg%3E">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <a class="skip" href="#tracklist-sec">Lewati ke tracklist</a>
+
+  <main id="site">
+    <!-- ============================ HERO / SLEEVE ==================== -->
+    <header class="hero" id="top" data-section="Sisi A">
+      <div class="hero__topbar">
+        <span class="mono" id="hero-label">Yukisnow Corp.</span>
+        <span class="mono" id="hero-cat">Cat. no. YS-004</span>
+      </div>
+
+      <div class="hero__body">
+        <div class="hero__titles">
+          <p class="hero__artist" id="hero-artist"></p>
+          <h1 class="hero__title disp" id="hero-title"></h1>
+          <div class="hero__sub mono">
+            <span>Side A / B</span>
+            <span class="runtime">Total runtime <b id="runtime" aria-live="off">00:00</b></span>
+          </div>
+        </div>
+
+        <div class="hero__stage">
+          <div class="turntable" id="hero-turntable" aria-hidden="true">
+            <div class="turntable__platter"></div>
+            <div class="record" id="hero-record"></div>
+            <div class="tonearm">
+              <span class="tonearm__pivot"></span>
+              <span class="tonearm__arm"></span>
+              <span class="tonearm__head"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero__meta mono">
+        <span id="hero-tag">Pressing pribadi · edisi terbatas 1 keping</span>
+        <a class="hero__scroll" href="#tracklist-sec">Putar ke bawah <span class="dot">▼</span></a>
+      </div>
+    </header>
+
+    <!-- ============================ TRACKLIST ======================== -->
+    <section class="section" id="tracklist-sec" data-section="Tracklist">
+      <div class="section__head">
+        <h2 class="section__title">Tracklist</h2>
+        <span class="section__index mono" id="track-count"></span>
+      </div>
+      <div class="tracklist" id="tracklist" role="list"></div>
+    </section>
+
+    <!-- ============================ LINER NOTES ====================== -->
+    <section class="liner" id="liner" data-section="Liner notes">
+      <div class="liner__inner reveal">
+        <div class="liner__head">
+          <span id="liner-head">Liner notes</span>
+          <span id="liner-cat">YS-004</span>
+        </div>
+        <div id="liner-body"></div>
+        <p class="liner__sign" id="liner-sign"></p>
+      </div>
+    </section>
+
+    <!-- ============================ CREDITS / 100 ALASAN ============= -->
+    <section class="section" id="credits" data-section="100 Alasan">
+      <div class="section__head">
+        <h2 class="section__title">Kredit — 100 alasan</h2>
+        <span class="section__index mono" id="credits-count"></span>
+      </div>
+
+      <div class="credits__feature reveal" id="totd" aria-live="polite"></div>
+
+      <div class="credits__tools">
+        <button class="btn" id="shuffle" type="button">⏵ Acak</button>
+        <label class="filter">
+          <span class="icn" aria-hidden="true">⌕</span>
+          <input id="filter" type="search" placeholder="Cari alasan…" aria-label="Cari di 100 alasan" autocomplete="off">
+        </label>
+        <span class="credits__count mono" id="filter-count"></span>
+      </div>
+
+      <div class="credits__list" id="reasons"></div>
+    </section>
+
+    <!-- ============================ BACK COVER ======================= -->
+    <section class="section back" id="back" data-section="Back cover">
+      <div class="section__head">
+        <h2 class="section__title">Sisi B — pressing berikutnya</h2>
+        <span class="section__index mono">YS-005</span>
+      </div>
+      <div class="back__grid">
+        <div class="reveal">
+          <p class="tag">Hitung mundur ke pressing berikutnya</p>
+          <div class="countdown" id="next-countdown"></div>
+          <p class="back__note" id="back-note"></p>
+          <div class="barcode" id="barcode" aria-hidden="true"></div>
+        </div>
+        <div class="back__credits reveal">
+          <dl id="back-credits"></dl>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer" id="footer"></footer>
+  </main>
+
+  <!-- ============================ NOW PLAYING BAR ==================== -->
+  <div class="nowbar" role="region" aria-label="Pemutar">
+    <div class="nowbar__mini" id="mini-turntable" aria-hidden="true">
+      <div class="record" id="mini-record"></div>
+      <div class="tonearm">
+        <span class="tonearm__pivot"></span>
+        <span class="tonearm__arm"></span>
+        <span class="tonearm__head"></span>
+      </div>
+    </div>
+    <div class="nowbar__info">
+      <span class="k">Now playing</span>
+      <span class="v" id="now-section">Sisi A</span>
+    </div>
+    <div class="nowbar__ctrls">
+      <span class="nowbar__time" id="now-runtime">00:00</span>
+      <button class="playbtn" id="playbtn" type="button" aria-label="Putar lagu" aria-pressed="false">
+        <span id="playbtn-icon">▶</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============================ EDITOR (mixing desk) ============== -->
+  <div class="edit" id="edit" role="dialog" aria-modal="true" aria-label="Mixing desk"></div>
+
+  <!-- ============================ TOAST ============================= -->
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <audio id="song" preload="none"></audio>
+
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
