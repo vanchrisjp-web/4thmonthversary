@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Photobox — Kamu &amp; Aku</title>
+  <meta name="theme-color" content="#12100E">
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2312100E'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='%23FF4A7D' stroke-width='2.5'/%3E%3Ccircle cx='16' cy='16' r='2.5' fill='%23FF4A7D'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap">
+  <style>
+    :root {
+      --ink:#12100E; --paper:#F2EDE3; --pink:#FF4A7D; --blue:#1C4FD8; --grey:#9A958C;
+      --line: rgba(242,237,227,0.16); --line2: rgba(242,237,227,0.34);
+      --mono:"Space Mono",ui-monospace,monospace; --body:"Space Grotesk",system-ui,sans-serif;
+      --disp:"Archivo",system-ui,sans-serif;
+      --ease:cubic-bezier(.4,0,.2,1); --spring:cubic-bezier(.34,1.56,.64,1);
+    }
+    * { box-sizing:border-box; margin:0; }
+    body { background:var(--ink); color:var(--paper); font-family:var(--body); line-height:1.5;
+      -webkit-font-smoothing:antialiased; min-height:100svh; padding:clamp(1rem,4vw,2.5rem);
+      padding-bottom:calc(env(safe-area-inset-bottom) + 2rem); }
+    a { color:var(--pink); }
+    button { font:inherit; color:inherit; cursor:pointer; background:none; border:none; }
+    video { display:block; max-width:100%; }
+    .mono { font-family:var(--mono); text-transform:uppercase; letter-spacing:0.08em; font-size:0.78rem; }
+    .tag { font-family:var(--mono); text-transform:uppercase; letter-spacing:0.18em; font-size:0.66rem; color:var(--grey); }
+
+    header.top { display:flex; justify-content:space-between; align-items:baseline; gap:1rem;
+      border-bottom:1px solid var(--line2); padding-bottom:0.8rem; margin-bottom:1.4rem; flex-wrap:wrap; }
+    .brand { font-family:var(--disp); font-weight:800; text-transform:uppercase; letter-spacing:-0.01em;
+      font-size:clamp(1.5rem,1rem+3vw,2.6rem); line-height:0.9; }
+    .brand .hh { color:var(--pink); }
+    .wrap { max-width:64rem; margin:0 auto; }
+
+    .btn { font-family:var(--mono); text-transform:uppercase; letter-spacing:0.1em; font-size:0.8rem;
+      border:1px solid var(--line2); padding:0.85em 1.2em; min-height:46px; display:inline-flex;
+      align-items:center; gap:0.5em; transition:transform .14s var(--spring), background-color .2s, color .2s, border-color .2s; }
+    .btn:hover { border-color:var(--pink); color:var(--pink); }
+    .btn:active { transform:scale(.96); }
+    .btn.solid { background:var(--pink); color:var(--ink); border-color:var(--pink); }
+    .btn.solid:hover { background:var(--paper); border-color:var(--paper); color:var(--ink); }
+    .btn.blue { background:var(--blue); color:var(--paper); border-color:var(--blue); }
+    .btn[disabled] { opacity:.45; pointer-events:none; }
+
+    .screen { display:none; }
+    .screen.on { display:block; }
+
+    /* lobby */
+    .lobby { display:grid; gap:1.2rem; grid-template-columns:1fr; max-width:34rem; }
+    .card { border:1px solid var(--line2); padding:1.3rem; }
+    .card h2 { font-family:var(--disp); font-weight:800; text-transform:uppercase; font-size:1.2rem; letter-spacing:-0.01em; margin-bottom:.3rem; }
+    .card p { color:var(--grey); font-size:.92rem; margin-bottom:1rem; }
+    .row { display:flex; gap:.6rem; }
+    .field { flex:1; min-width:0; background:rgba(242,237,227,0.05); border:1px solid var(--line2);
+      color:var(--paper); padding:.7em .8em; min-height:46px; font-family:var(--mono); letter-spacing:.14em; text-transform:uppercase; }
+    .field::placeholder { color:var(--grey); letter-spacing:.1em; }
+
+    /* code / waiting */
+    .code { font-family:var(--disp); font-weight:800; font-size:clamp(2.6rem,1.5rem+7vw,5rem); letter-spacing:.06em;
+      color:var(--pink); line-height:1; }
+    .sharebox { border:1px dashed var(--line2); padding:.8rem 1rem; display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; margin-top:1rem; }
+    .sharebox input { flex:1; min-width:12ch; background:none; border:none; color:var(--paper); font-family:var(--mono); font-size:.8rem; }
+    .dotpulse::after { content:"…"; animation:dots 1.4s steps(4,end) infinite; }
+    @keyframes dots { 0%{content:""} 25%{content:"."} 50%{content:".."} 75%{content:"..."} }
+
+    /* session */
+    .stage { display:grid; gap:.9rem; grid-template-columns:1fr 1fr; margin:1rem 0 1.2rem; }
+    @media (max-width:640px){ .stage { grid-template-columns:1fr; } }
+    .feed { position:relative; aspect-ratio:4/3; background:#0c0b09; border:1px solid var(--line2); overflow:hidden; }
+    .feed video { width:100%; height:100%; object-fit:cover; }
+    .feed.me video { transform:scaleX(-1); }
+    .feed .who { position:absolute; left:.5rem; bottom:.5rem; z-index:2; background:rgba(18,16,14,.7);
+      padding:.2em .6em; font-family:var(--mono); font-size:.62rem; letter-spacing:.16em; text-transform:uppercase; }
+    .feed .off { position:absolute; inset:0; display:grid; place-items:center; color:var(--grey); font-family:var(--mono); font-size:.72rem; }
+
+    .controls { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }
+    .layouts { display:flex; gap:.4rem; flex-wrap:wrap; }
+    .chip { font-family:var(--mono); text-transform:uppercase; letter-spacing:.08em; font-size:.72rem;
+      border:1px solid var(--line2); padding:.5em .8em; min-height:40px; display:inline-flex; align-items:center; }
+    .chip[aria-pressed="true"] { background:var(--paper); color:var(--ink); border-color:var(--paper); }
+
+    .count { position:fixed; inset:0; z-index:50; display:none; place-items:center; background:rgba(18,16,14,.55); }
+    .count.on { display:grid; }
+    .count b { font-family:var(--disp); font-weight:800; font-size:min(40vw,18rem); color:var(--paper);
+      text-shadow:.04em .02em 0 var(--pink), -.04em -.02em 0 var(--blue); animation:pop .9s var(--ease); }
+    @keyframes pop { from{ transform:scale(.4); opacity:0 } 40%{ transform:scale(1); opacity:1 } to{ opacity:.85 } }
+
+    .result { margin-top:1.2rem; display:none; }
+    .result.on { display:block; }
+    .result img { max-width:min(100%,26rem); border:1px solid var(--line2); }
+    .result .acts { display:flex; gap:.6rem; margin-top:.8rem; flex-wrap:wrap; }
+
+    .status { font-family:var(--mono); font-size:.78rem; color:var(--grey); margin-top:1rem; min-height:1.4em; }
+    .status.err { color:var(--pink); }
+    .note { color:var(--grey); font-size:.82rem; margin-top:.8rem; max-width:44ch; }
+    .backlink { position:fixed; top:1rem; right:1rem; }
+
+    @media (prefers-reduced-motion: reduce){ * { animation-duration:.001ms !important; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div class="brand">Photo<span class="hh">♥</span>box</div>
+      <div class="tag">Kamu &amp; Aku · sesi berdua</div>
+    </header>
+
+    <!-- LOBBY -->
+    <section class="screen on" id="s-lobby">
+      <div class="lobby">
+        <div class="card">
+          <h2>Buat room</h2>
+          <p>Kamu jadi tuan rumah. Nanti dapat satu kode buat dibagikan.</p>
+          <button class="btn solid" id="host-btn">Buat room &amp; nyalakan kamera</button>
+        </div>
+        <div class="card">
+          <h2>Gabung room</h2>
+          <p>Masukkan kode dari pasangan kamu.</p>
+          <div class="row">
+            <input class="field" id="join-code" placeholder="Kode" maxlength="8" autocomplete="off" inputmode="latin" aria-label="Kode room">
+            <button class="btn" id="join-btn">Gabung</button>
+          </div>
+        </div>
+        <p class="note">Kamera butuh izin dan koneksi https. Suara dimatikan biar nggak gaung — ngobrolnya lewat telepon biasa aja ya. Foto diambil langsung di browser, nggak diunggah ke mana-mana kecuali kamu simpan.</p>
+        <p class="status" id="lobby-status" role="status"></p>
+      </div>
+    </section>
+
+    <!-- WAITING (host) -->
+    <section class="screen" id="s-wait">
+      <p class="tag">Bagikan kode ini ke pasangan kamu</p>
+      <div class="code" id="wait-code">—</div>
+      <div class="sharebox">
+        <input id="share-link" readonly aria-label="Tautan undangan">
+        <button class="btn" id="copy-link">Salin tautan</button>
+      </div>
+      <p class="status"><span id="wait-status" class="dotpulse">Menunggu pasangan bergabung</span></p>
+      <div class="stage" style="grid-template-columns:1fr; max-width:22rem">
+        <div class="feed me"><video id="selfPreview" autoplay playsinline muted></video><span class="who">Kamu</span></div>
+      </div>
+    </section>
+
+    <!-- SESSION -->
+    <section class="screen" id="s-session">
+      <div class="stage">
+        <div class="feed me"><video id="selfVideo" autoplay playsinline muted></video><span class="who">Kamu</span></div>
+        <div class="feed"><video id="remoteVideo" autoplay playsinline></video><span class="who">Dia</span>
+          <div class="off" id="remote-off">menyambung…</div></div>
+      </div>
+      <div class="controls">
+        <div class="layouts" role="group" aria-label="Tata letak">
+          <button class="chip" data-layout="side" aria-pressed="true">Berdampingan</button>
+          <button class="chip" data-layout="stack" aria-pressed="false">Tumpuk</button>
+          <button class="chip" data-layout="strip" aria-pressed="false">Strip ×3</button>
+        </div>
+        <button class="btn solid" id="shoot-btn">Ambil foto</button>
+      </div>
+      <div class="result" id="result">
+        <p class="tag">Hasil</p>
+        <img id="result-img" alt="Hasil photobox">
+        <div class="acts">
+          <button class="btn solid" id="download-btn">Unduh</button>
+          <button class="btn" id="retake-btn">Ambil lagi</button>
+        </div>
+      </div>
+      <p class="status" id="session-status" role="status"></p>
+    </section>
+  </div>
+
+  <div class="count" id="count" aria-hidden="true"><b id="count-n">3</b></div>
+  <a class="btn backlink" href="./" id="backlink">← Album</a>
+
+  <script src="assets/js/photobox.js"></script>
+</body>
+</html>

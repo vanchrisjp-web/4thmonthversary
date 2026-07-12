@@ -143,6 +143,38 @@ Drop an audio file at `audio/side-a.mp3` and set `song_url` to `"audio/side-a.mp
 
 ---
 
+## Photobox — a two-person photobooth (`/photobox`)
+
+A live webcam photobooth you and she use together, in the browser. Reach it at
+`yourdomain/photobox`.
+
+**How it works**
+1. You open `/photobox` → **Buat room** → allow the camera → you get a **code** and a
+   shareable **link** (`/photobox#CODE`).
+2. Send her the link. She opens it, taps **Gabung**, allows her camera.
+3. You're connected peer-to-peer. Pick a layout (**Berdampingan / Tumpuk / Strip ×3**),
+   tap **Ambil foto** → 3-2-1 countdown → snapshot.
+4. The result is composited on a printed frame with a **timestamp** + "Kamu ♥ Aku".
+   **Unduh** saves the PNG. (Nothing is uploaded — capture happens in the browser.)
+
+**It needs KV** (the same binding as Mode B) for the room signaling — the two browsers
+swap connection info through it. One-time setup (dashboard):
+
+1. Cloudflare → **Storage & Databases → KV → Create a namespace** (name it e.g. `content`).
+2. **Workers & Pages → your Worker → Settings → Bindings → Add → KV namespace** →
+   variable name **`CONTENT`** → pick the namespace → **Deploy**.
+
+Without KV bound, `/photobox` loads but shows "belum diaktifkan" instead of connecting.
+
+**Caveats**
+- Needs **https** (the live site) + camera permission. Audio is off by design (no echo) —
+  talk over a normal phone call while you pose.
+- Video is peer-to-peer; on most wifi it connects directly. Some strict mobile-data
+  networks need a **TURN relay** — if you can't connect, that's the fix (ask and it can
+  be added via Cloudflare's TURN).
+- Saving snapshots into a shared on-site gallery (instead of just downloading) is a
+  follow-on — it needs image storage (R2). Download works today.
+
 ## Next pressing (Month 5)
 
 It's a content change, not a code change:
