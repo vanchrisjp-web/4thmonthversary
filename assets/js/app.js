@@ -773,6 +773,8 @@
     function renderMaster() {
       var p = $("#p-master");
       p.innerHTML =
+        strip("Preview lokal", "<button class='btn' id='m-reset' type='button'>Reset ke versi terbit</button>" +
+          "<p class='hint'>Perangkat ini menyimpan hasil SAVE kamu (preview). Kalau situs menampilkan konten lama padahal sudah kamu terbitkan, tekan ini untuk membuang preview lokal lalu muat ulang.</p>") +
         strip("Nama kamu", inp("artist_a")) +
         strip("Nama dia", inp("artist_b")) +
         strip("Judul album", inp("album_title")) +
@@ -789,6 +791,12 @@
           esc(localStorage.getItem(LS_TOKEN) || "") + "'><p class='hint'>Disimpan hanya di perangkat ini, bukan di content.json.</p>");
       bindInputs(p);
       $("#m-token").addEventListener("input", function () { localStorage.setItem(LS_TOKEN, this.value); });
+      $("#m-reset").addEventListener("click", function () {
+        if (confirm("Buang preview lokal di perangkat ini dan muat versi yang sudah terbit?")) {
+          try { localStorage.removeItem(LS_CONTENT); } catch (e) {}
+          location.reload();
+        }
+      });
       $("#m-song").addEventListener("change", function (e) {
         var f = e.target.files[0]; if (!f) return;
         blobToDataURL(f).then(function (d) { content.song_url = d; audioEl.src = ""; $("#m-song-h").textContent = "Lagu diperbarui (" + Math.round(f.size / 1024) + " KB)."; checkSize(); });

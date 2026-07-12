@@ -556,6 +556,24 @@ body::before {
 .back__credits dl { display: grid; grid-template-columns: auto 1fr; gap: 0.3em var(--sp-sm); }
 .back__credits dt { color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-mono-xs); letter-spacing: 0.12em; text-transform: uppercase; }
 .back__credits dd { font-family: var(--font-mono); font-size: var(--fs-mono); }
+
+/* photobox entry — a bonus-track strip */
+.photobox-cta {
+  display: flex; align-items: center; gap: var(--sp-md); flex-wrap: wrap;
+  border: 1px solid var(--line-strong); padding: var(--sp-md) var(--sp-lg);
+  margin-top: var(--sp-xl);
+  transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease), transform var(--dur-fast) var(--ease-spring);
+}
+.photobox-cta:hover { border-color: var(--riso-pink); background: color-mix(in srgb, var(--riso-pink) 8%, transparent); }
+.photobox-cta:active { transform: scale(0.995); }
+.photobox-cta .pc-tag { color: var(--riso-pink); }
+.photobox-cta .pc-title {
+  font-family: var(--font-disp); font-weight: 800; text-transform: uppercase;
+  font-size: var(--fs-h3); letter-spacing: -0.01em; line-height: 0.9; flex: 1; min-width: 8ch;
+}
+.photobox-cta .pc-go { color: var(--paper); }
+.photobox-cta:hover .pc-go { color: var(--riso-pink); }
+
 .footer { padding: var(--sp-lg) var(--edge) var(--sp-2xl); border-top: 1px solid var(--line); color: var(--muted); text-align: center; }
 
 /* =============================== NOW PLAYING BAR ======================= */
