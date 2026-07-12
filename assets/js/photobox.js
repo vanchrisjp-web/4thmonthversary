@@ -393,8 +393,47 @@
       .catch(function () { setStatus("#album-status", "Gagal memuat album.", true); });
   }
 
+  // ------------------------------------------------------------ music accompaniment
+  function setupMusic() {
+    var audio = document.getElementById("pb-song");
+    var toggle = document.getElementById("music-toggle");
+    if (!audio || !toggle) return;
+    var unlocked = false;
+    function refresh() {
+      var silent = audio.paused || audio.muted;
+      toggle.classList.toggle("off", silent);
+      toggle.setAttribute("aria-label", silent ? "Putar musik" : "Jeda musik");
+    }
+    function unlock() {
+      if (unlocked) return; unlocked = true;
+      audio.muted = false;
+      if (audio.paused) audio.play().catch(function () {});
+      refresh();
+    }
+    fetch("/content.json", { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; })
+      .then(function (c) {
+        audio.src = (c && c.song_url) || "audio/side-a.mp3";
+        audio.loop = true;
+        audio.muted = true;
+        audio.play().catch(function () {});
+        ["scroll", "keydown", "click", "touchstart"].forEach(function (ev) {
+          window.addEventListener(ev, unlock, { once: true, passive: true });
+        });
+        audio.addEventListener("play", refresh);
+        audio.addEventListener("pause", refresh);
+        toggle.addEventListener("click", function () {
+          if (!unlocked) { unlock(); return; }
+          if (audio.paused) audio.play().catch(function () {}); else audio.pause();
+        });
+        refresh();
+      });
+  }
+
   // ------------------------------------------------------------ wire up
   function init() {
+    setupMusic();
     $("#host-btn").addEventListener("click", startHost);
     $("#join-btn").addEventListener("click", function () {
       startJoin(($("#join-code").value || "").toUpperCase().replace(/[^A-Z0-9]/g, ""));

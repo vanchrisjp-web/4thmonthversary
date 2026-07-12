@@ -313,6 +313,21 @@ body::before {
   100% { transform: rotate(var(--arm)); }
 }
 
+/* the disc doubles as a play/pause button (synced with the now-playing bar) */
+.disc-toggle {
+  position: absolute; inset: 0; z-index: 5;
+  border: 0; background: transparent; cursor: pointer; border-radius: 50%;
+  display: grid; place-items: center; color: var(--paper);
+}
+.disc-toggle .ic {
+  width: 62px; height: 62px; border-radius: 50%;
+  background: rgba(18, 16, 14, 0.5);
+  display: grid; place-items: center; font-size: 1.5rem;
+  opacity: 0; transition: opacity var(--dur) var(--ease), transform var(--dur-fast) var(--ease-spring);
+}
+.disc-toggle:hover .ic, .disc-toggle:focus-visible .ic { opacity: 1; }
+.disc-toggle:active .ic { transform: scale(0.9); }
+
 /* =============================== TRACKLIST =============================== */
 .tracklist { display: flex; flex-direction: column; }
 .track {

@@ -105,6 +105,12 @@
     .status.err { color:var(--pink); }
     .note { color:var(--grey); font-size:.82rem; margin-top:.8rem; max-width:44ch; }
     .backlink { position:fixed; top:1rem; right:1rem; }
+    .music-toggle { position:fixed; left:1rem; bottom:1rem; z-index:40; width:46px; height:46px; border-radius:50%;
+      border:1px solid var(--line2); background:var(--ink); color:var(--pink); font-size:1.15rem; display:grid; place-items:center;
+      transition:transform .14s var(--spring), color .2s, border-color .2s; }
+    .music-toggle:hover { border-color:var(--pink); }
+    .music-toggle:active { transform:scale(.92); }
+    .music-toggle.off { color:var(--grey); }
 
     @media (prefers-reduced-motion: reduce){ * { animation-duration:.001ms !important; } }
   </style>
@@ -192,6 +198,8 @@
 
   <div class="count" id="count" aria-hidden="true"><b id="count-n">3</b></div>
   <a class="btn backlink" href="./" id="backlink">← Album</a>
+  <audio id="pb-song" loop preload="auto"></audio>
+  <button class="music-toggle off" id="music-toggle" type="button" aria-label="Putar musik" title="Musik">♪</button>
 
   <script src="assets/js/photobox.js"></script>
 </body>

@@ -549,14 +549,20 @@
       icon.textContent = isPlaying ? "⏸" : "▶";
       btn.setAttribute("aria-pressed", isPlaying ? "true" : "false");
       btn.setAttribute("aria-label", isPlaying ? "Jeda lagu" : "Putar lagu");
+      var di = $("#disc-toggle-icon"); if (di) di.textContent = isPlaying ? "⏸" : "▶";
+      setSpin(isPlaying); // disc spins only while the song plays
     }
-    btn.addEventListener("click", function () {
+    // one shared toggle drives both the disc and the bottom bar -> always in sync
+    function togglePlay() {
       if (!content.song_url) { toast("Belum ada lagu. Tambah di /edit.", true); return; }
       if (!audioEl.src) audioEl.src = content.song_url;
       if (!audioUnlocked) { unlockAudio(); return; } // first tap unmutes the autoplaying song
       if (audioEl.paused) { audioEl.play().catch(function () { toast("Gagal memutar audio.", true); }); }
       else audioEl.pause();
-    });
+    }
+    btn.addEventListener("click", togglePlay);
+    var discToggle = $("#disc-toggle"); if (discToggle) discToggle.addEventListener("click", togglePlay);
+    var miniTt = $("#mini-turntable"); if (miniTt) { miniTt.style.cursor = "pointer"; miniTt.addEventListener("click", togglePlay); }
     audioEl.addEventListener("play", function () { isPlaying = true; refresh(); });
     audioEl.addEventListener("pause", function () { isPlaying = false; refresh(); });
     audioEl.addEventListener("ended", function () { isPlaying = false; refresh(); });
@@ -585,8 +591,8 @@
       });
     }
   }
-  function setSpin() {
-    var on = !prefersReduced(); // records spin continuously (unless reduced motion)
+  function setSpin(playing) {
+    var on = playing && !prefersReduced(); // spins only while the song is playing
     ["#hero-record", "#mini-record"].forEach(function (sel) {
       var r = $(sel); if (r) r.classList.toggle("spinning", on);
     });
@@ -1126,7 +1132,7 @@
       setupAudio();
       setupCredits();
       setupKeyboard();
-      setSpin(); // records spin (unless reduced motion)
+      setSpin(false); // stopped until the song plays
 
       // hero entrance
       var tt = $("#hero-turntable");
