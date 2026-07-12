@@ -386,7 +386,25 @@
           var cap = document.createElement("figcaption"); cap.textContent = ts;
           var dl = document.createElement("a"); dl.className = "dl"; dl.href = it.url;
           dl.setAttribute("download", "photobox-" + it.name + ".png"); dl.textContent = "Unduh";
-          fig.appendChild(img); fig.appendChild(cap); fig.appendChild(dl);
+          var del = document.createElement("button"); del.className = "del"; del.type = "button"; del.textContent = "Hapus";
+          del.addEventListener("click", function () {
+            if (!window.confirm("Hapus foto ini dari album? Nggak bisa dibatalkan.")) return;
+            del.disabled = true; del.textContent = "Menghapus…";
+            fetch("/api/album/" + encodeURIComponent(it.name), { method: "DELETE" })
+              .then(function (r) { if (!r.ok) throw 0; return r; })
+              .then(function () {
+                if (fig.parentNode) fig.parentNode.removeChild(fig);
+                var left = grid.querySelectorAll("figure").length;
+                setStatus("#album-status", left ? left + " foto" : "Belum ada foto. Ambil satu di sesi berdua ya.");
+              })
+              .catch(function () {
+                del.disabled = false; del.textContent = "Hapus";
+                setStatus("#album-status", "Gagal menghapus. Coba lagi.", true);
+              });
+          });
+          var actions = document.createElement("div"); actions.className = "card-actions";
+          actions.appendChild(dl); actions.appendChild(del);
+          fig.appendChild(img); fig.appendChild(cap); fig.appendChild(actions);
           grid.appendChild(fig);
         });
       })

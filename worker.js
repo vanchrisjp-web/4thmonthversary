@@ -14,7 +14,7 @@
 const KEY = "content";
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, PUT, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, PUT, POST, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Authorization, Content-Type",
 };
 
@@ -168,6 +168,10 @@ async function handleAlbum(request, env, url) {
     h.set("Content-Type", "image/png");
     h.set("Cache-Control", "public, max-age=31536000, immutable");
     return new Response(buf, { headers: h });
+  }
+  if (m && request.method === "DELETE") {
+    await env.CONTENT.delete("album:" + m[1]);
+    return jsonRes({ ok: true, deleted: m[1] });
   }
   if (url.pathname === "/api/album" && (request.method === "POST" || request.method === "PUT")) {
     const buf = await request.arrayBuffer();

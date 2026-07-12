@@ -98,8 +98,12 @@
     .album-grid figure { margin:0; border:1px solid var(--line2); background:#0c0b09; }
     .album-grid img { width:100%; display:block; }
     .album-grid figcaption { font-family:var(--mono); font-size:.62rem; color:var(--grey); padding:.4em .6em; letter-spacing:.08em; }
-    .album-grid a.dl { display:block; text-align:center; padding:.45em; font-family:var(--mono); font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; border-top:1px solid var(--line2); }
+    .album-grid .card-actions { display:flex; border-top:1px solid var(--line2); }
+    .album-grid a.dl { flex:1; text-align:center; padding:.45em; font-family:var(--mono); font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; }
     .album-grid a.dl:hover { color:var(--pink); }
+    .album-grid button.del { flex:1; text-align:center; padding:.45em; font-family:var(--mono); font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; background:none; border:0; border-left:1px solid var(--line2); color:var(--grey); cursor:pointer; }
+    .album-grid button.del:hover:not(:disabled) { color:var(--pink); }
+    .album-grid button.del:disabled { opacity:.5; cursor:default; }
 
     .status { font-family:var(--mono); font-size:.78rem; color:var(--grey); margin-top:1rem; min-height:1.4em; }
     .status.err { color:var(--pink); }

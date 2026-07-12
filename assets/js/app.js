@@ -450,6 +450,7 @@
     // photobox album (cached across re-renders)
     albumFrames.forEach(function (a) { wall.appendChild(frameEl(a.src, "Photobox · sesi berdua", a.ts)); });
     galleryCount(wall.children.length);
+    galleryParallax.refresh();
     // fetch the album once, then re-render to slot it in
     if (albumFetched || !/^https?:/.test(location.protocol)) return;
     albumFetched = true;
@@ -486,6 +487,47 @@
         (sub ? "<span class='d'>" + esc(sub) + "</span>" : "") +
       "</figcaption>";
     return fig;
+  }
+
+  // 3D parallax for the gallery wall: frames tilt toward the cursor and swing in
+  // a coverflow-style depth as the wall scrolls (center faces forward, sides angle away).
+  var galleryParallax = { refresh: function () {} };
+  function wireGalleryParallax() {
+    var wall = $("#gallery-wall");
+    if (!wall) return;
+    var mx = 0, my = 0, raf = 0;
+    function apply() {
+      raf = 0;
+      var frames = wall.querySelectorAll(".frame");
+      if (!frames.length || prefersReduced()) return;
+      var wr = wall.getBoundingClientRect();
+      var cx = wr.width / 2;
+      for (var k = 0; k < frames.length; k++) {
+        var f = frames[k];
+        var r = f.getBoundingClientRect();
+        var fc = (r.left - wr.left) + r.width / 2;
+        var rel = Math.max(-1, Math.min(1, (fc - cx) / (cx || 1)));
+        var rotY = (rel * -19) + (mx * 7);
+        var rotX = (-my * 5);
+        var tz = (1 - Math.abs(rel)) * 55;
+        f.style.transform =
+          "rotateX(" + rotX.toFixed(2) + "deg) rotateY(" + rotY.toFixed(2) + "deg) translateZ(" + tz.toFixed(1) + "px)";
+      }
+    }
+    function schedule() { if (!raf) raf = requestAnimationFrame(apply); }
+    galleryParallax.refresh = schedule;
+    if (prefersReduced()) return;
+    wall.addEventListener("scroll", schedule, { passive: true });
+    wall.addEventListener("pointermove", function (e) {
+      var wr = wall.getBoundingClientRect();
+      mx = ((e.clientX - wr.left) / wr.width) * 2 - 1;
+      my = ((e.clientY - wr.top) / wr.height) * 2 - 1;
+      schedule();
+    }, { passive: true });
+    wall.addEventListener("pointerleave", function () { mx = 0; my = 0; schedule(); }, { passive: true });
+    window.addEventListener("resize", schedule, { passive: true });
+    window.addEventListener("scroll", schedule, { passive: true }); // re-settle as it enters view
+    schedule();
   }
 
   // ---- back cover ----
@@ -1249,6 +1291,7 @@
       setupAudio();
       setupCredits();
       setupKeyboard();
+      wireGalleryParallax();
       setSpin(false); // stopped until the song plays
 
       // hero entrance

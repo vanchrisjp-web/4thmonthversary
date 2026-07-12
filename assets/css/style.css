@@ -440,6 +440,8 @@ body.song-playing .tonearm__head { animation-play-state: running; } /* needle ri
   border-bottom: 1px solid var(--line);
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
+  perspective: 1500px;
+  perspective-origin: 50% 42%;
 }
 .gallery__wall::-webkit-scrollbar { height: 8px; }
 .gallery__wall::-webkit-scrollbar-track { background: transparent; }
@@ -454,9 +456,16 @@ body.song-playing .tonearm__head { animation-play-state: running; } /* needle ri
   flex-direction: column;
   align-items: center;
   gap: var(--sp-sm);
-  transition: transform var(--dur) var(--ease);
+  transform-style: preserve-3d;
+  transition: transform 240ms var(--ease);
+  will-change: transform;
 }
-.frame:hover { transform: translateY(-7px); }
+.frame:hover .frame__mat {
+  box-shadow:
+    0 40px 70px -22px rgba(0, 0, 0, 0.95),
+    0 0 0 6px #16130f,
+    0 0 0 7px color-mix(in srgb, var(--riso-pink) 30%, transparent);
+}
 .frame__mat {
   position: relative;
   background: var(--paper);
@@ -876,6 +885,7 @@ body.editing { overflow: hidden; }
   .tonearm__head { animation: none !important; }
   .hero__scroll .dot { animation: none !important; }
   .hero__artist .x { animation: none !important; }
+  .frame { transform: none !important; }
   #petals { display: none !important; }
   .reveal { opacity: 1 !important; transform: none !important; }
 }
