@@ -383,6 +383,12 @@
             d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
           var fig = document.createElement("figure");
           var img = document.createElement("img"); img.src = it.url; img.alt = "Foto photobox"; img.loading = "lazy";
+          img.addEventListener("error", function () {
+            // photo deleted but still listed (KV eventual consistency) — drop it seamlessly
+            if (fig.parentNode) fig.parentNode.removeChild(fig);
+            var left = grid.querySelectorAll("figure").length;
+            setStatus("#album-status", left ? left + " foto" : "Belum ada foto. Ambil satu di sesi berdua ya.");
+          });
           var cap = document.createElement("figcaption"); cap.textContent = ts;
           var dl = document.createElement("a"); dl.className = "dl"; dl.href = it.url;
           dl.setAttribute("download", "photobox-" + it.name + ".png"); dl.textContent = "Unduh";

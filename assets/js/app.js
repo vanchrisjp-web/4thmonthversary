@@ -435,7 +435,9 @@
 
   // ---- gallery (virtual museum wall) ----
   var albumFrames = [];   // cached photobox-album entries {src, ts}
-  var albumFetched = false;
+  var deadAlbum = {};     // srcs that 404'd — never re-add (KV may still list them ~60s)
+  var albumBound = false;
+  var lastAlbumFetch = 0;
   function renderGallery() {
     var wall = $("#gallery-wall");
     if (!wall) return;
@@ -447,27 +449,56 @@
       .forEach(function (t) {
         if (t.photo) wall.appendChild(frameEl(t.photo, pad(t.n) + " · " + (t.title || ""), fmtDateID(t.date) || ""));
       });
-    // photobox album (cached across re-renders)
-    albumFrames.forEach(function (a) { wall.appendChild(frameEl(a.src, "Photobox · sesi berdua", a.ts)); });
+    // photobox album (cached across re-renders); each image self-heals if the
+    // photo was deleted (404) — drop the frame instead of showing broken alt-text
+    albumFrames.forEach(function (a) {
+      var fr = frameEl(a.src, "Photobox · sesi berdua", a.ts);
+      var img = fr.querySelector("img");
+      if (img) {
+        img.loading = "eager"; // load proactively so a deleted photo self-prunes before it's seen
+        img.addEventListener("error", function () {
+          deadAlbum[a.src] = true;
+          albumFrames = albumFrames.filter(function (x) { return x.src !== a.src; });
+          if (fr.parentNode) fr.parentNode.removeChild(fr);
+          galleryCount(wall.children.length);
+          galleryParallax.refresh();
+        });
+      }
+      wall.appendChild(fr);
+    });
     galleryCount(wall.children.length);
     galleryParallax.refresh();
-    // fetch the album once, then re-render to slot it in
-    if (albumFetched || !/^https?:/.test(location.protocol)) return;
-    albumFetched = true;
+    // first paint: wire auto-refresh so the wall follows the album seamlessly,
+    // then pull the current album
+    if (!albumBound && /^https?:/.test(location.protocol)) {
+      albumBound = true;
+      window.addEventListener("pageshow", function (e) { if (e.persisted) refreshAlbum(); }); // back button / bfcache
+      document.addEventListener("visibilitychange", function () { if (!document.hidden) refreshAlbum(); });
+      window.addEventListener("focus", function () { refreshAlbum(); });
+      refreshAlbum(true);
+    }
+  }
+  function albumKey(arr) { return arr.map(function (a) { return a.src; }).join("|"); }
+  function refreshAlbum(force) {
+    if (!/^https?:/.test(location.protocol)) return;
+    var now = Date.now();
+    if (!force && now - lastAlbumFetch < 3000) return; // throttle focus/visibility bursts
+    lastAlbumFetch = now;
     fetch("/api/album", { cache: "no-store" })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) {
         var items = (j && j.items) ? j.items : [];
-        if (!items.length) return;
-        albumFrames = items.map(function (a) {
-          var ts = "";
-          if (a.uploaded) {
-            var d = new Date(a.uploaded);
-            if (!isNaN(d)) ts = d.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" });
-          }
-          return { src: a.url, ts: ts };
-        });
-        renderGallery();
+        var next = items
+          .filter(function (a) { return !deadAlbum[a.url]; })
+          .map(function (a) {
+            var ts = "";
+            if (a.uploaded) {
+              var d = new Date(a.uploaded);
+              if (!isNaN(d)) ts = d.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" });
+            }
+            return { src: a.url, ts: ts };
+          });
+        if (albumKey(next) !== albumKey(albumFrames)) { albumFrames = next; renderGallery(); }
       })
       .catch(function () { /* album optional; ignore */ });
   }
