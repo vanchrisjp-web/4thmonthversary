@@ -101,12 +101,16 @@
       var col = i % 2 ? "#1C4FD8" : "#FF4A7D";
       s.push("<circle cx='100' cy='100' r='" + rr.toFixed(1) + "' fill='none' stroke='" + col + "' stroke-opacity='0.42' stroke-width='0.9'/>");
     }
+    // rotation-visible gloss streak so the spin actually reads (record is otherwise symmetric)
+    s.push("<rect x='98.4' y='7' width='3.2' height='40' rx='1.6' fill='#F2EDE3' opacity='0.09'/>");
     // label
     s.push("<circle cx='100' cy='100' r='44' fill='#F2EDE3'/>");
     s.push("<circle cx='100' cy='100' r='44' fill='none' stroke='#12100E' stroke-opacity='0.15' stroke-width='0.6'/>");
     s.push("<text x='100' y='90' text-anchor='middle' font-family='Space Mono, monospace' font-size='9' letter-spacing='1.5' fill='#12100E'>SIDE A</text>");
     s.push("<text x='100' y='104' text-anchor='middle' font-family='Archivo, sans-serif' font-weight='800' font-size='15' fill='#FF4A7D'>" + esc(catalog) + "</text>");
     s.push("<text x='100' y='118' text-anchor='middle' font-family='Space Mono, monospace' font-size='6.5' letter-spacing='1' fill='#9A958C'>" + esc(lbl) + "</text>");
+    // registration dot on the label — orbits the center as it spins
+    s.push("<circle cx='100' cy='63' r='2.6' fill='#FF4A7D'/>");
     // spindle
     s.push("<circle cx='100' cy='100' r='3.2' fill='#0c0b09'/>");
     s.push("</svg>");

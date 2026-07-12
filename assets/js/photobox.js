@@ -12,10 +12,16 @@
   // ICE servers are fetched from the Worker (/api/photobox/turn), which mints
   // Cloudflare TURN credentials server-side. STUN-only until that resolves.
   var ICE = { iceServers: [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }] };
+  var iceRelay = false, relayCount = 0;
   function loadIce() {
     return fetch("/api/photobox/turn", { cache: "no-store" })
       .then(function (r) { return r.json(); })
-      .then(function (j) { if (j && j.iceServers && j.iceServers.length) ICE = { iceServers: j.iceServers }; })
+      .then(function (j) {
+        if (j && j.iceServers && j.iceServers.length) {
+          ICE = { iceServers: j.iceServers };
+          iceRelay = (j.turn === "cloudflare"); // force relay-only when real TURN is available
+        }
+      })
       .catch(function () {});
   }
 
@@ -94,7 +100,8 @@
   var remoteReady = false, candQueue = [], candTimers = [], candPollStop = false, connTimer = null;
 
   function newPC(candSlot) {
-    var p = new RTCPeerConnection(ICE);
+    relayCount = 0;
+    var p = new RTCPeerConnection({ iceServers: ICE.iceServers, iceTransportPolicy: iceRelay ? "relay" : "all" });
     localStream.getTracks().forEach(function (t) { p.addTrack(t, localStream); });
     p.ontrack = function (e) {
       var rv = $("#remoteVideo"); if (rv) rv.srcObject = e.streams[0];
@@ -102,7 +109,10 @@
     };
     // trickle: publish each local candidate the instant it's found (no gather wait)
     p.onicecandidate = function (e) {
-      if (e.candidate) postRaw(myCode, candSlot, JSON.stringify(e.candidate));
+      if (e.candidate) {
+        postRaw(myCode, candSlot, JSON.stringify(e.candidate));
+        if (e.candidate.type === "relay") relayCount++;
+      }
     };
     p.onconnectionstatechange = function () {
       var st = p.connectionState;
@@ -127,9 +137,15 @@
   function armConnectTimeout() {
     clearTimeout(connTimer);
     connTimer = setTimeout(function () {
-      if (!connected) setStatus(role === "host" ? "#wait-status" : "#lobby-status",
-        "Masih nyoba nyambung… kalau lama, jaringan kalian perlu relay (TURN). Aktifkan Cloudflare TURN (lihat README).", true);
-    }, 22000);
+      if (connected) return;
+      var where = role === "host" ? "#wait-status" : "#lobby-status";
+      if (iceRelay && relayCount === 0)
+        setStatus(where, "Relay TURN nggak kebentuk (0 kandidat) — jaringan/firewall mungkin blokir. Coba jaringan lain.", true);
+      else if (relayCount > 0)
+        setStatus(where, "Kandidat relay ada (" + relayCount + ") tapi belum nyambung. Coba refresh dua-duanya.", true);
+      else
+        setStatus(where, "Masih nyoba nyambung… tunggu sebentar ya.", true);
+    }, 20000);
   }
   function addRemoteCandidate(str) {
     var c; try { c = JSON.parse(str); } catch (e) { return; }

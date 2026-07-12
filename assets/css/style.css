@@ -248,7 +248,7 @@ body::before {
   transform: translateZ(0);
   will-change: transform;
 }
-.record.spinning { animation: spin 3.4s linear infinite; } /* spins only while the song plays */
+.record.spinning { animation: spin 2.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .record svg { width: 100%; height: 100%; }
 
