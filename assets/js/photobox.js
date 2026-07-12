@@ -30,8 +30,8 @@
 
   // ------------------------------------------------------------ screens/status
   function show(id) {
-    ["s-lobby", "s-wait", "s-session"].forEach(function (s) {
-      $("#" + s).classList.toggle("on", s === id);
+    ["s-lobby", "s-wait", "s-session", "s-album"].forEach(function (s) {
+      var el = $("#" + s); if (el) el.classList.toggle("on", s === id);
     });
   }
   function setStatus(where, msg, err) {
@@ -347,6 +347,52 @@
       p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
   }
 
+  // ------------------------------------------------------------ album (KV-backed)
+  function saveToAlbum() {
+    if (!lastCanvas) return;
+    var b = $("#save-album-btn"); if (b) b.disabled = true;
+    setStatus("#session-status", "Menyimpan ke album…");
+    lastCanvas.toBlob(function (blob) {
+      if (!blob) { if (b) b.disabled = false; return; }
+      fetch("/api/album", { method: "POST", headers: { "Content-Type": "image/png" }, body: blob })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { r: r, j: j }; }); })
+        .then(function (o) {
+          if (o.j && o.j.ok) setStatus("#session-status", "Tersimpan ke album ✓ — buka lewat 'Lihat album'.");
+          else if (o.r.status === 503) setStatus("#session-status", "Album belum aktif (KV belum kebind).", true);
+          else setStatus("#session-status", "Gagal menyimpan ke album.", true);
+        })
+        .catch(function () { setStatus("#session-status", "Gagal menyimpan ke album.", true); })
+        .then(function () { if (b) b.disabled = false; });
+    }, "image/png");
+  }
+  function showAlbum() { show("s-album"); loadAlbum(); }
+  function loadAlbum() {
+    var grid = $("#album-grid"); grid.innerHTML = "";
+    setStatus("#album-status", "Memuat…");
+    fetch("/api/album", { cache: "no-store" })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { r: r, j: j }; }); })
+      .then(function (o) {
+        if (o.r.status === 503) { setStatus("#album-status", "Album belum aktif (KV belum kebind).", true); return; }
+        var items = (o.j && o.j.items) || [];
+        if (!items.length) { setStatus("#album-status", "Belum ada foto. Ambil satu di sesi berdua ya."); return; }
+        setStatus("#album-status", items.length + " foto");
+        items.forEach(function (it) {
+          var d = new Date(it.uploaded);
+          var ts = (!it.uploaded || isNaN(d.getTime())) ? "" :
+            d.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) + " · " +
+            d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+          var fig = document.createElement("figure");
+          var img = document.createElement("img"); img.src = it.url; img.alt = "Foto photobox"; img.loading = "lazy";
+          var cap = document.createElement("figcaption"); cap.textContent = ts;
+          var dl = document.createElement("a"); dl.className = "dl"; dl.href = it.url;
+          dl.setAttribute("download", "photobox-" + it.name + ".png"); dl.textContent = "Unduh";
+          fig.appendChild(img); fig.appendChild(cap); fig.appendChild(dl);
+          grid.appendChild(fig);
+        });
+      })
+      .catch(function () { setStatus("#album-status", "Gagal memuat album.", true); });
+  }
+
   // ------------------------------------------------------------ wire up
   function init() {
     $("#host-btn").addEventListener("click", startHost);
@@ -379,6 +425,9 @@
       a.href = lastCanvas.toDataURL("image/png");
       document.body.appendChild(a); a.click(); a.remove();
     });
+    $("#save-album-btn").addEventListener("click", saveToAlbum);
+    $("#open-album").addEventListener("click", showAlbum);
+    $("#album-back").addEventListener("click", function () { show(connected ? "s-session" : "s-lobby"); });
 
     // shared invite link: /photobox#CODE -> prefill the join field
     var h = (location.hash || "").replace(/^#/, "").toUpperCase().replace(/[^A-Z0-9]/g, "");

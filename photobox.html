@@ -93,6 +93,14 @@
     .result img { max-width:min(100%,26rem); border:1px solid var(--line2); }
     .result .acts { display:flex; gap:.6rem; margin-top:.8rem; flex-wrap:wrap; }
 
+    .album-head { display:flex; justify-content:space-between; align-items:baseline; gap:1rem; flex-wrap:wrap; margin-top:.5rem; }
+    .album-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:1rem; margin-top:1rem; }
+    .album-grid figure { margin:0; border:1px solid var(--line2); background:#0c0b09; }
+    .album-grid img { width:100%; display:block; }
+    .album-grid figcaption { font-family:var(--mono); font-size:.62rem; color:var(--grey); padding:.4em .6em; letter-spacing:.08em; }
+    .album-grid a.dl { display:block; text-align:center; padding:.45em; font-family:var(--mono); font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; border-top:1px solid var(--line2); }
+    .album-grid a.dl:hover { color:var(--pink); }
+
     .status { font-family:var(--mono); font-size:.78rem; color:var(--grey); margin-top:1rem; min-height:1.4em; }
     .status.err { color:var(--pink); }
     .note { color:var(--grey); font-size:.82rem; margin-top:.8rem; max-width:44ch; }
@@ -124,7 +132,8 @@
             <button class="btn" id="join-btn">Gabung</button>
           </div>
         </div>
-        <p class="note">Kamera butuh izin dan koneksi https. Suara dimatikan biar nggak gaung — ngobrolnya lewat telepon biasa aja ya. Foto diambil langsung di browser, nggak diunggah ke mana-mana kecuali kamu simpan.</p>
+        <button class="btn" id="open-album" type="button" style="align-self:flex-start">🖼 Lihat album</button>
+        <p class="note">Kamera butuh izin dan koneksi https. Suara dimatikan biar nggak gaung — ngobrolnya lewat telepon biasa aja ya. Foto diambil langsung di browser, nggak diunggah ke mana-mana kecuali kamu simpan ke album.</p>
         <p class="status" id="lobby-status" role="status"></p>
       </div>
     </section>
@@ -163,10 +172,21 @@
         <img id="result-img" alt="Hasil photobox">
         <div class="acts">
           <button class="btn solid" id="download-btn">Unduh</button>
+          <button class="btn" id="save-album-btn">Simpan ke album</button>
           <button class="btn" id="retake-btn">Ambil lagi</button>
         </div>
       </div>
       <p class="status" id="session-status" role="status"></p>
+    </section>
+
+    <!-- ALBUM -->
+    <section class="screen" id="s-album">
+      <div class="album-head">
+        <p class="tag">Album photobox</p>
+        <button class="btn" id="album-back" type="button">← Kembali</button>
+      </div>
+      <div id="album-grid" class="album-grid"></div>
+      <p class="status" id="album-status" role="status"></p>
     </section>
   </div>
 

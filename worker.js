@@ -153,11 +153,45 @@ async function handleTurn(request, env) {
   });
 }
 
+// Photobox album, backed by the existing KV (CONTENT) so there's nothing extra to
+// set up. POST saves a PNG under album:<ts>-<rand>, GET lists, GET /api/album/<name>
+// serves one. Images are small composites (well under KV's 25MB value limit).
+async function handleAlbum(request, env, url) {
+  if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
+  if (!env.CONTENT) return jsonRes({ error: "kv_not_set" }, 503);
+
+  const m = url.pathname.match(/^\/api\/album\/(.+)$/);
+  if (m && request.method === "GET") {
+    const buf = await env.CONTENT.get("album:" + m[1], "arrayBuffer");
+    if (!buf) return new Response("Not found", { status: 404, headers: CORS });
+    const h = new Headers(CORS);
+    h.set("Content-Type", "image/png");
+    h.set("Cache-Control", "public, max-age=31536000, immutable");
+    return new Response(buf, { headers: h });
+  }
+  if (url.pathname === "/api/album" && (request.method === "POST" || request.method === "PUT")) {
+    const buf = await request.arrayBuffer();
+    if (buf.byteLength > 5 * 1024 * 1024) return jsonRes({ error: "too_large" }, 413);
+    const name = Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+    await env.CONTENT.put("album:" + name, buf);
+    return jsonRes({ ok: true, name: name, url: "/api/album/" + name });
+  }
+  if (url.pathname === "/api/album" && request.method === "GET") {
+    const list = await env.CONTENT.list({ prefix: "album:", limit: 500 });
+    const items = (list.keys || [])
+      .map(function (k) { const n = k.name.replace(/^album:/, ""); return { name: n, url: "/api/album/" + n, uploaded: parseInt(n.split("-")[0], 10) || 0 }; })
+      .sort(function (a, b) { return b.uploaded - a.uploaded; });
+    return jsonRes({ items: items });
+  }
+  return jsonRes({ error: "bad_request" }, 400);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/api/content") return handleContent(request, env);
     if (url.pathname === "/api/photobox/turn") return handleTurn(request, env);
+    if (url.pathname === "/api/album" || url.pathname.startsWith("/api/album/")) return handleAlbum(request, env, url);
     if (url.pathname.startsWith("/api/photobox/")) return handlePhotobox(request, env, url);
     return env.ASSETS.fetch(request);
   },

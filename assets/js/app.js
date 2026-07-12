@@ -537,6 +537,14 @@
   function setupAudio() {
     var btn = $("#playbtn"), icon = $("#playbtn-icon");
     audioEl.loop = true; // song repeats after it finishes
+    var audioUnlocked = false;
+    function unlockAudio() {
+      if (audioUnlocked) return;
+      audioUnlocked = true;
+      audioEl.muted = false;
+      try { audioEl.currentTime = 0; } catch (e) {}
+      if (audioEl.paused) audioEl.play().catch(function () {});
+    }
     function refresh() {
       icon.textContent = isPlaying ? "⏸" : "▶";
       btn.setAttribute("aria-pressed", isPlaying ? "true" : "false");
@@ -545,6 +553,7 @@
     btn.addEventListener("click", function () {
       if (!content.song_url) { toast("Belum ada lagu. Tambah di /edit.", true); return; }
       if (!audioEl.src) audioEl.src = content.song_url;
+      if (!audioUnlocked) { unlockAudio(); return; } // first tap unmutes the autoplaying song
       if (audioEl.paused) { audioEl.play().catch(function () { toast("Gagal memutar audio.", true); }); }
       else audioEl.pause();
     });
@@ -564,22 +573,15 @@
     });
     refresh();
 
-    // Autoplay + loop. True unprompted autoplay is blocked by browsers unless the
-    // visitor has enough media-engagement (e.g. you, who open this often) — so we
-    // try immediately, and fall back to starting on her first interaction.
+    // Autoplay: browsers only allow UNMUTED audio after a gesture. So autoplay the
+    // looping song MUTED (allowed everywhere), then unmute from the start on her first
+    // interaction (scroll / tap / key / play button). Closest possible to autoplay.
     if (content.song_url) {
       if (!audioEl.src) audioEl.src = content.song_url;
-      var started = false;
-      var go = function () {
-        if (started || !audioEl.paused) return;
-        started = true;
-        audioEl.play().catch(function () { started = false; });
-      };
-      var kick = audioEl.play();
-      if (kick && kick.catch) kick.catch(function () {
-        ["pointerdown", "keydown", "touchstart", "scroll"].forEach(function (ev) {
-          window.addEventListener(ev, go, { once: true, passive: true });
-        });
+      audioEl.muted = true;
+      audioEl.play().catch(function () {});
+      ["scroll", "keydown", "click", "touchstart"].forEach(function (ev) {
+        window.addEventListener(ev, unlockAudio, { once: true, passive: true });
       });
     }
   }
