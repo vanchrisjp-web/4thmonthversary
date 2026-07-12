@@ -1,0 +1,11 @@
+# Files in the repo root that must NOT be served as public static assets.
+.git
+.gitignore
+.assetsignore
+node_modules
+worker.js
+wrangler.toml
+functions
+*.md
+claudedesignskills-main
+claudedesignskills-main.zip

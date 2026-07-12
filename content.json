@@ -1,13 +1,13 @@
 {
   "passcode": "salju2026",
   "catalog_no": "YS-004",
-  "label": "Yukisnow Corp.",
-  "artist_a": "Evan",
-  "artist_b": "Sabil",
+  "label": "Kamu dan Aku",
+  "artist_a": "Kamu",
+  "artist_b": "Aku",
   "album_title": "Salju Pertama",
   "start_date": "2026-03-17",
-  "song_url": "",
-  "liner_notes": "Sabil,\n\nAku nggak pinter nulis surat, jadi aku bikin yang ini aja. Anggap ini sisi A dari sesuatu yang aku harap panjang. Empat bulan kedengerannya sebentar, tapi entah kenapa berasa kayak aku udah lama kenal kamu.\n\nAku suka hal-hal kecil yang kamu nggak sadar kamu lakuin. Cara kamu inget hal yang aku sendiri lupa. Cara kamu bilang hati-hati tiap aku pulang. Aku ngerekam semuanya diam-diam, jadi ada di sini semua, jadi lagu, jadi track.\n\nAku nggak janji semuanya bakal mulus. Tapi aku janji bakal terus nekan tombol rekam. Setiap bulan aku bakal tambahin track baru di sini, sampai sisinya penuh, terus kita balik ke sisi B.\n\nMakasih udah mau jadi pendengar satu-satunya.",
+  "song_url": "audio/side-a.mp3",
+  "liner_notes": "Sayang,\n\nAku nggak pinter nulis surat, jadi aku bikin yang ini aja. Anggap ini sisi A dari sesuatu yang aku harap panjang. Empat bulan kedengerannya sebentar, tapi entah kenapa berasa kayak aku udah lama kenal kamu.\n\nAku suka hal-hal kecil yang kamu nggak sadar kamu lakuin. Cara kamu inget hal yang aku sendiri lupa. Cara kamu bilang hati-hati tiap aku pulang. Aku ngerekam semuanya diam-diam, jadi ada di sini semua, jadi lagu, jadi track.\n\nAku nggak janji semuanya bakal mulus. Tapi aku janji bakal terus nekan tombol rekam. Setiap bulan aku bakal tambahin track baru di sini, sampai sisinya penuh, terus kita balik ke sisi B.\n\nMakasih udah mau jadi pendengar satu-satunya.",
   "tracks": [
     {
       "n": 1,
@@ -140,7 +140,7 @@
   ],
   "hidden_track": {
     "unlock_date": "2026-07-17",
-    "message": "Kalau kamu baca ini, berarti udah tanggal 17 dan track-nya kebuka.\n\nAku nyimpen satu hal yang belum sempat aku bilang langsung: aku nggak nganggep ini proyek sebulan. Aku bikin tempat ini biar bisa aku isi terus, sampai track-nya nggak muat lagi.\n\nSelamat empat bulan, Bil. Sisi B nanti kita isi bareng."
+    "message": "Kalau kamu baca ini, berarti udah tanggal 17 dan track-nya kebuka.\n\nAku nyimpen satu hal yang belum sempat aku bilang langsung: aku nggak nganggep ini proyek sebulan. Aku bikin tempat ini biar bisa aku isi terus, sampai track-nya nggak muat lagi.\n\nSelamat empat bulan, Sayang. Sisi B nanti kita isi bareng."
   },
   "reasons": [
     "Cara kamu ketawa waktu sesuatu benar-benar lucu, sampai lupa nutup mulut.",
@@ -244,6 +244,6 @@
     "Kamu milih aku lagi, tiap hari, walau udah tahu semua kurangnya.",
     "Kamu bikin empat bulan terasa kayak awal dari sesuatu yang panjang."
   ],
-  "closing": "Sisi A selesai. Balik piringannya kapan-kapan.",
+  "closing": "Dari yang mencintaimu.",
   "footer": "Yukisnow Corp. · YS-004 · Ditekan dengan tangan, untuk satu pendengar."
 }

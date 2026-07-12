@@ -11,15 +11,15 @@
 window.SIDE_A_DEFAULTS = {
   passcode: "salju2026",
   catalog_no: "YS-004",
-  label: "Yukisnow Corp.",
-  artist_a: "Evan",
-  artist_b: "Sabil",
+  label: "Kamu dan Aku",
+  artist_a: "Kamu",
+  artist_b: "Aku",
   album_title: "Salju Pertama",
   start_date: "2026-03-17", // drives runtime, groove rings, and every countdown
-  song_url: "", // path (e.g. "audio/side-a.mp3") or a data URL from the editor
+  song_url: "audio/side-a.mp3", // path or a data URL from the editor
 
   liner_notes:
-    "Sabil,\n\n" +
+    "Sayang,\n\n" +
     "Aku nggak pinter nulis surat, jadi aku bikin yang ini aja. Anggap ini sisi A dari sesuatu yang aku harap panjang. Empat bulan kedengerannya sebentar, tapi entah kenapa berasa kayak aku udah lama kenal kamu.\n\n" +
     "Aku suka hal-hal kecil yang kamu nggak sadar kamu lakuin. Cara kamu inget hal yang aku sendiri lupa. Cara kamu bilang hati-hati tiap aku pulang. Aku ngerekam semuanya diam-diam, jadi ada di sini semua, jadi lagu, jadi track.\n\n" +
     "Aku nggak janji semuanya bakal mulus. Tapi aku janji bakal terus nekan tombol rekam. Setiap bulan aku bakal tambahin track baru di sini, sampai sisinya penuh, terus kita balik ke sisi B.\n\n" +
@@ -49,7 +49,7 @@ window.SIDE_A_DEFAULTS = {
     message:
       "Kalau kamu baca ini, berarti udah tanggal 17 dan track-nya kebuka.\n\n" +
       "Aku nyimpen satu hal yang belum sempat aku bilang langsung: aku nggak nganggep ini proyek sebulan. Aku bikin tempat ini biar bisa aku isi terus, sampai track-nya nggak muat lagi.\n\n" +
-      "Selamat empat bulan, Bil. Sisi B nanti kita isi bareng."
+      "Selamat empat bulan, Sayang. Sisi B nanti kita isi bareng."
   },
 
   // 100 Alasan — the credits / lyric sheet. Distinct, specific, no filler.
@@ -156,6 +156,6 @@ window.SIDE_A_DEFAULTS = {
     "Kamu bikin empat bulan terasa kayak awal dari sesuatu yang panjang."
   ],
 
-  closing: "Sisi A selesai. Balik piringannya kapan-kapan.",
+  closing: "Dari yang mencintaimu.",
   footer: "Yukisnow Corp. · YS-004 · Ditekan dengan tangan, untuk satu pendengar."
 };

@@ -83,26 +83,26 @@ open  yourdomain.com/#edit
 
 ---
 
-## Deploy to Cloudflare Pages (Mode A)
+## Deploy to Cloudflare (Mode A)
 
-**Connect to Git (auto-deploys on every push):**
+Deployed as a **Cloudflare Worker with static assets** (`wrangler.toml` + `worker.js`).
+It's connected to this GitHub repo, so **every `git push` auto-deploys** in ~30s — no
+build step. The Worker serves the whole site from the repo root and adds `/api/content`
+(used only by Mode B; it returns `null` otherwise, so the console stays clean).
 
-1. Push this repo to GitHub.
-2. Cloudflare dashboard → **Workers & Pages** → **Create** → **Pages** →
-   **Connect to Git** → pick the repo.
-3. Build settings:
-   - Framework preset: **None**
-   - Build command: *(leave empty)*
-   - Build output directory: **`/`**
-4. **Save and Deploy.** You get `side-a.pages.dev`. Every `git push` re-deploys.
+**Reconnect / first-time setup** (if needed): Cloudflare dashboard → **Workers & Pages**
+→ **Create** → **Import a repository** → pick this repo. The Git integration reads
+`wrangler.toml` and runs `wrangler deploy` automatically — nothing else to configure.
+You get `4thmonthversary.<your-subdomain>.workers.dev`.
 
-No `_redirects` and no env vars are needed for Mode A — `#edit` is a hash route, so
-static hosting serves it natively.
+`#edit` is a hash route, so it works with no redirects or extra config.
 
-**Custom domain:** Pages project → **Custom domains** → **Set up a domain** → enter it.
-If the zone is on Cloudflare the record is created for you; otherwise point
-`CNAME → <project>.pages.dev`. TLS provisions automatically. Then `yourdomain.com` and
-`yourdomain.com/#edit` both work with zero extra config.
+**Deploy from your machine** instead of Git (optional): `npx wrangler login` then
+`npx wrangler deploy`.
+
+**Custom domain:** your Worker → **Settings** → **Domains & Routes** → **Add** → enter
+the domain. TLS provisions automatically; `yourdomain.com/#edit` then works with zero
+extra config.
 
 ---
 
@@ -114,12 +114,15 @@ Removes the export-and-commit step. Only do this if you want it; Mode A is compl
    ```bash
    npx wrangler kv namespace create CONTENT
    ```
-2. In `wrangler.toml`, uncomment the `[[kv_namespaces]]` block and paste the `id`.
+2. In `wrangler.toml`, uncomment the `[[kv_namespaces]]` block and paste the `id`
+   (or bind it in the dashboard: your Worker → **Settings** → **Bindings** → **KV**,
+   variable name `CONTENT`).
 3. Set the write password as an **encrypted secret**:
    ```bash
-   npx wrangler pages secret put EDIT_TOKEN
+   npx wrangler secret put EDIT_TOKEN
    ```
-   (or dashboard → Settings → Environment variables → add `EDIT_TOKEN`, Encrypt).
+   (or dashboard → your Worker → **Settings** → **Variables and Secrets** → add
+   `EDIT_TOKEN`, Encrypt).
 4. In `#edit` → **Master** → "Token terbit (KV)", paste the same value. It is stored
    only on your device, never in `content.json`.
 5. Now **SAVE** in the editor writes straight to KV via `PUT /api/content`
@@ -159,9 +162,10 @@ index.html            the whole site + the editor
 content.json          published content (optional; site works without it)
 assets/css/style.css  the two-ink risograph design system
 assets/js/data.js     built-in defaults (16 tracks, 100 reasons, the letter)
-assets/js/app.js       reader + editor logic
+assets/js/app.js      reader + editor logic
 audio/                the song
-functions/api/content.js   Mode B API (safe to keep; 404s without KV)
-wrangler.toml         Cloudflare config (Mode B is commented out)
+worker.js             Cloudflare Worker: serves the site + /api/content
+wrangler.toml         Cloudflare Worker (Static Assets) config; Mode B commented out
+.assetsignore         files kept out of the public asset bundle
 _headers              caching rules
 ```

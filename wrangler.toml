@@ -1,20 +1,27 @@
-# Cloudflare Pages configuration.
+# Cloudflare Worker (Static Assets) config.
 #
-# Mode A (static hosting) works with this file exactly as-is — the site serves
-# from the repo root and the editor SAVE writes to localStorage / EXPORT.
+# The whole static site is served from the repo root via the ASSETS binding, and
+# worker.js adds the /api/content endpoint. This is what the project's Git deploy
+# (`wrangler deploy`) expects. Mode A needs nothing more.
 #
-# Mode B (optional): let SAVE in /#edit publish for everyone via a KV namespace.
-#   1. npx wrangler kv namespace create CONTENT
-#   2. Uncomment the [[kv_namespaces]] block below and paste the id.
-#   3. Set the write password as an encrypted secret (NOT here):
-#        npx wrangler pages secret put EDIT_TOKEN
+# The site also runs from file:// and any plain static host — this file is only
+# read by Cloudflare/Wrangler.
+#
+# Mode B (optional — SAVE in /#edit publishes for everyone):
+#   1. Create a KV namespace:  npx wrangler kv namespace create CONTENT
+#   2. Uncomment [[kv_namespaces]] below and paste the id (or bind it in the
+#      dashboard: your Worker -> Settings -> Bindings -> KV, variable name CONTENT).
+#   3. Set the write password:  npx wrangler secret put EDIT_TOKEN
+#      (or dashboard -> Settings -> Variables and Secrets -> add EDIT_TOKEN, Encrypt).
 #   4. In /#edit -> Master -> "Token terbit (KV)", paste the same value.
-#
-# Leaving the KV block commented keeps the API at /api/content returning 404,
-# which the site treats as "fall back to content.json" — so Mode A never breaks.
 
 name = "4thmonthversary"
-pages_build_output_dir = "."
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+[assets]
+directory = "."
+binding = "ASSETS"
 
 # --- Mode B only ---
 # [[kv_namespaces]]

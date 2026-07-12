@@ -155,7 +155,7 @@
     $("#liner-cat").textContent = content.catalog_no || "YS-004";
     var artist = $("#hero-artist");
     artist.innerHTML = esc((content.artist_a || "").toUpperCase()) +
-      " <span class='x'>✕</span> " + esc((content.artist_b || "").toUpperCase());
+      " <span class='x' aria-label='dan'>♥</span> " + esc((content.artist_b || "").toUpperCase());
     $("#hero-title").textContent = content.album_title || "";
     document.title = (content.album_title || "Side A") + " — " + (content.catalog_no || "YS-004");
 
@@ -328,7 +328,7 @@
 
   // ---- liner notes ----
   function renderLiner() {
-    $("#liner-head").textContent = "Liner notes — ditulis oleh " + (content.artist_a || "");
+    $("#liner-head").textContent = "Liner notes — untuk " + (content.artist_a || "kamu");
     var body = $("#liner-body");
     body.innerHTML = "";
     var paras = String(content.liner_notes || "").split(/\n\n+/);
@@ -418,8 +418,8 @@
     var dl = $("#back-credits");
     dl.innerHTML = "";
     var rows = [
-      ["Artist", (content.artist_a || "") + " ✕ " + (content.artist_b || "")],
-      ["Ditulis oleh", content.artist_a || ""],
+      ["Artist", (content.artist_a || "") + " ♥ " + (content.artist_b || "")],
+      ["Ditulis oleh", content.artist_b || ""],
       ["Katalog", content.catalog_no || "YS-004"],
       ["Label", content.label || "Yukisnow Corp."],
       ["Mulai", fmtDateID(content.start_date)],
@@ -487,7 +487,7 @@
 
   // --------------------------------------------------------------- turntable scroll
   var armEls = [];
-  var nowSection;
+  var nowSection, heroStage, heroTitles;
   var targetArm = 0, curArm = 0;
   var REST = -34, END = -5;
 
@@ -497,10 +497,19 @@
   }
   function onFrame() {
     var p = scrollProgress();
+    var reduced = prefersReduced();
     targetArm = lerp(REST, END, p);
-    if (prefersReduced()) curArm = targetArm;
+    if (reduced) curArm = targetArm;
     else curArm += (targetArm - curArm) * 0.12;
     for (var i = 0; i < armEls.length; i++) armEls[i].style.setProperty("--arm", curArm.toFixed(2) + "deg");
+    // gentle hero parallax — record drifts, title counter-drifts
+    if (!reduced && heroStage) {
+      var sy = window.scrollY, vh = window.innerHeight;
+      if (sy < vh * 1.4) {
+        heroStage.style.transform = "translate3d(0," + (sy * 0.16).toFixed(1) + "px,0)";
+        if (heroTitles) heroTitles.style.transform = "translate3d(0," + (sy * -0.05).toFixed(1) + "px,0)";
+      }
+    }
     updateNowSection();
     requestAnimationFrame(onFrame);
   }
@@ -567,6 +576,64 @@
       });
     }, { threshold: 0.16 });
     els.forEach(function (e) { io.observe(e); });
+  }
+
+  // --------------------------------------------------------------- petals (blossom drift)
+  // Soft two-ink petals falling like first snow. Restrained on purpose so the
+  // printed look survives. Never runs under prefers-reduced-motion.
+  function initPetals() {
+    var canvas = document.getElementById("petals");
+    if (!canvas || prefersReduced() || !canvas.getContext) return;
+    var ctx = canvas.getContext("2d");
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var W = 0, H = 0, petals = [];
+    var COLORS = ["#FF4A7D", "#1C4FD8", "#F2EDE3"];
+    function resize() {
+      W = canvas.width = Math.floor(window.innerWidth * dpr);
+      H = canvas.height = Math.floor(window.innerHeight * dpr);
+      canvas.style.width = window.innerWidth + "px";
+      canvas.style.height = window.innerHeight + "px";
+    }
+    function make(seeded) {
+      return {
+        baseX: Math.random() * W,
+        y: seeded ? Math.random() * H : -30 * dpr,
+        r: (5 + Math.random() * 7) * dpr,
+        sp: (0.25 + Math.random() * 0.6) * dpr,
+        amp: (8 + Math.random() * 30) * dpr,
+        ph: Math.random() * 6.283,
+        sway: 0.006 + Math.random() * 0.012,
+        rot: Math.random() * 6.283,
+        vr: (Math.random() - 0.5) * 0.03,
+        op: 0.16 + Math.random() * 0.26,
+        col: COLORS[(Math.random() * COLORS.length) | 0]
+      };
+    }
+    resize();
+    var N = Math.max(9, Math.min(22, Math.round(window.innerWidth / 90)));
+    for (var i = 0; i < N; i++) petals.push(make(true));
+    window.addEventListener("resize", resize);
+    function frame() {
+      requestAnimationFrame(frame);
+      if (document.hidden) return;
+      ctx.clearRect(0, 0, W, H);
+      for (var i = 0; i < petals.length; i++) {
+        var p = petals[i];
+        p.y += p.sp; p.ph += p.sway; p.rot += p.vr;
+        if (p.y > H + 30 * dpr) petals[i] = p = make(false);
+        var x = p.baseX + Math.sin(p.ph) * p.amp;
+        ctx.save();
+        ctx.translate(x, p.y);
+        ctx.rotate(p.rot);
+        ctx.globalAlpha = p.op;
+        ctx.fillStyle = p.col;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, p.r * 0.55, p.r, 0, 0, 6.283);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+    frame();
   }
 
   // --------------------------------------------------------------- toast
@@ -1003,6 +1070,9 @@
     armEls = [$("#hero-turntable"), $("#mini-turntable")].filter(Boolean).map(function (t) { return t; });
     // arm elements set --arm on the .turntable containers
     nowSection = $("#now-section");
+    heroStage = $(".hero__stage");
+    heroTitles = $(".hero__titles");
+    initPetals();
 
     loadContent().then(function (c) {
       content = c;
