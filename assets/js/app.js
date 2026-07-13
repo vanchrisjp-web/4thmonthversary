@@ -366,24 +366,24 @@
       if (!p.trim()) return;
       var el = document.createElement("p");
       el.className = "liner__p";
-      wordWrap(el, p.trim());
+      charWrap(el, p.trim());
       body.appendChild(el);
     });
     var sign = $("#liner-sign");
     sign.innerHTML = "";
-    wordWrap(sign, content.closing || "");
-    layoutStory(); // word list / pin heights changed
+    charWrap(sign, content.closing || "");
+    layoutStory(); // char list / pin heights changed
   }
-  // wrap each word in <span class="w"> so scroll can highlight them one by one
-  function wordWrap(el, text) {
-    text.split(/(\s+)/).forEach(function (tok) {
-      if (!tok) return;
-      if (/^\s+$/.test(tok)) { el.appendChild(document.createTextNode(tok)); return; }
+  // wrap each character in <span class="c"> so scroll can highlight letter by letter.
+  // Whole words stay wrapped together (no break opportunity between letter spans);
+  // spaces become their own spans so lines still break normally.
+  function charWrap(el, text) {
+    for (var i = 0; i < text.length; i++) {
       var s = document.createElement("span");
-      s.className = "w";
-      s.textContent = tok;
+      s.className = "c";
+      s.textContent = text.charAt(i);
       el.appendChild(s);
-    });
+    }
   }
 
   // ---- credits / 100 alasan ----
@@ -558,9 +558,9 @@
         var r = f.getBoundingClientRect();
         var fc = (r.left - wr.left) + r.width / 2;
         var rel = Math.max(-1, Math.min(1, (fc - cx) / (cx || 1)));
-        var rotY = (rel * -19) + (mx * 7);
-        var rotX = (-my * 5);
-        var tz = (1 - Math.abs(rel)) * 55;
+        var rotY = (rel * -7) + (mx * 3);
+        var rotX = (-my * 2.2);
+        var tz = (1 - Math.abs(rel)) * 26;
         f.style.transform =
           "rotateX(" + rotX.toFixed(2) + "deg) rotateY(" + rotY.toFixed(2) + "deg) translateZ(" + tz.toFixed(1) + "px)";
       }
@@ -726,7 +726,7 @@
     var reduced = prefersReduced();
     linerSec = $("#liner"); linerPin = $(".liner__pin"); linerInner = $("#liner-inner");
     if (linerSec && linerInner) {
-      linerWords = [].slice.call(linerInner.querySelectorAll(".w"));
+      linerWords = [].slice.call(linerInner.querySelectorAll(".c"));
       linerInner.style.transform = "none";
       linerWords.forEach(function (w) { w.classList.remove("on", "edge"); });
       linerIdx = 0; linerEdge = null;

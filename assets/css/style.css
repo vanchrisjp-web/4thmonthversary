@@ -429,23 +429,27 @@ body.song-playing .tonearm__head { animation-play-state: running; } /* needle ri
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  padding: var(--sp-2xl) 0;
+  padding: var(--sp-xl) 0 var(--sp-lg);
   overflow: hidden;
 }
+/* header + caption stay at the top; the wall fills the rest and centers the photos */
 .gallery__pin > .section__head,
-.gallery__pin > .gallery__intro { padding-left: var(--edge); padding-right: var(--edge); }
-.gallery__intro { color: var(--muted); margin: calc(-1 * var(--sp-sm)) 0 0; }
+.gallery__pin > .gallery__intro {
+  flex: 0 0 auto;
+  padding-left: var(--edge); padding-right: var(--edge);
+}
+.gallery__intro { color: var(--muted); margin: var(--sp-xs) 0 0; }
 .gallery__wall {
+  flex: 1 1 auto;
   display: flex;
-  align-items: flex-start;
+  align-items: center;         /* photos centered in the space below the header */
   gap: clamp(1.6rem, 1rem + 3.4vw, 4.5rem);
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: none;
   scroll-padding-inline: var(--edge);
-  padding: var(--sp-xl) var(--edge) var(--sp-lg);
-  margin: var(--sp-lg) 0 0;
+  padding: var(--sp-lg) var(--edge);
+  margin: 0;
   -webkit-overflow-scrolling: touch;
   /* soft spotlight wash from above, like gallery lighting */
   background:
@@ -500,9 +504,9 @@ body.song-playing .tonearm__head { animation-play-state: running; } /* needle ri
 .frame__pic { position: relative; display: block; overflow: hidden; background: #0c0b09; }
 .frame__pic img {
   display: block;
-  max-height: clamp(210px, 40vh, 400px);
+  max-height: clamp(190px, 34vh, 360px);
   width: auto;
-  max-width: min(76vw, 460px);
+  max-width: min(74vw, 440px);
   object-fit: cover;
   filter: grayscale(1) contrast(1.08) brightness(1.02);
 }
@@ -585,16 +589,16 @@ body.song-playing .tonearm__head { animation-play-state: running; } /* needle ri
   padding: var(--sp-2xl) var(--edge);
 }
 .liner__inner { max-width: var(--measure); margin: 0 auto; width: 100%; position: relative; will-change: transform; }
-/* scroll-driven read-along: words fade up from faint to ink, pink leading edge */
-.liner.is-progressive .liner__p .w,
-.liner.is-progressive .liner__sign .w {
+/* scroll-driven read-along: letters fade up from faint to ink, pink leading edge */
+.liner.is-progressive .liner__p .c,
+.liner.is-progressive .liner__sign .c {
   color: color-mix(in srgb, var(--ink) 16%, transparent);
-  transition: color 200ms linear;
+  transition: color 120ms linear;
 }
-.liner.is-progressive .liner__p .w.on,
-.liner.is-progressive .liner__sign .w.on { color: var(--ink); }
-.liner.is-progressive .liner__sign .w.on { color: color-mix(in srgb, var(--ink) 70%, transparent); }
-.liner.is-progressive .w.edge { color: var(--riso-pink); }
+.liner.is-progressive .liner__p .c.on,
+.liner.is-progressive .liner__sign .c.on { color: var(--ink); }
+.liner.is-progressive .liner__sign .c.on { color: color-mix(in srgb, var(--ink) 70%, transparent); }
+.liner.is-progressive .c.edge { color: var(--riso-pink); }
 .liner__head {
   font-family: var(--font-mono);
   font-size: var(--fs-mono);
@@ -922,8 +926,8 @@ body.editing { overflow: hidden; }
   /* scroll-driven sections fall back to plain, unpinned layout */
   .liner__pin { position: static; min-height: 0; overflow: visible; }
   .liner__inner { transform: none !important; }
-  .liner.is-progressive .w { color: var(--ink) !important; }
-  .liner.is-progressive .liner__sign .w { color: color-mix(in srgb, var(--ink) 70%, transparent) !important; }
+  .liner.is-progressive .c { color: var(--ink) !important; }
+  .liner.is-progressive .liner__sign .c { color: color-mix(in srgb, var(--ink) 70%, transparent) !important; }
   .section.gallery { min-height: 0 !important; }
   .gallery__pin { position: static; min-height: 0; }
   #petals { display: none !important; }
