@@ -421,6 +421,20 @@ body.song-playing .tonearm__head { animation-play-state: running; } /* needle ri
 .spread__story { font-size: var(--fs-lead); line-height: 1.45; }
 
 /* ===================== GALLERY (virtual museum) ===================== */
+/* section is a scroll track; the pin holds the wall while vertical scroll pans it */
+.section.gallery { padding: 0; position: relative; }
+.gallery__pin {
+  position: sticky;
+  top: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--sp-2xl) 0;
+  overflow: hidden;
+}
+.gallery__pin > .section__head,
+.gallery__pin > .gallery__intro { padding-left: var(--edge); padding-right: var(--edge); }
 .gallery__intro { color: var(--muted); margin: calc(-1 * var(--sp-sm)) 0 0; }
 .gallery__wall {
   display: flex;
@@ -428,10 +442,10 @@ body.song-playing .tonearm__head { animation-play-state: running; } /* needle ri
   gap: clamp(1.6rem, 1rem + 3.4vw, 4.5rem);
   overflow-x: auto;
   overflow-y: hidden;
-  scroll-snap-type: x proximity;
+  scroll-snap-type: none;
   scroll-padding-inline: var(--edge);
   padding: var(--sp-xl) var(--edge) var(--sp-lg);
-  margin: var(--sp-lg) calc(-1 * var(--edge)) 0;
+  margin: var(--sp-lg) 0 0;
   -webkit-overflow-scrolling: touch;
   /* soft spotlight wash from above, like gallery lighting */
   background:
@@ -550,7 +564,6 @@ body.song-playing .tonearm__head { animation-play-state: running; } /* needle ri
 .liner {
   background: var(--paper);
   color: var(--ink);
-  padding: var(--sp-2xl) var(--edge);
   position: relative;
 }
 .liner::before {
@@ -561,7 +574,27 @@ body.song-playing .tonearm__head { animation-play-state: running; } /* needle ri
   background-size: 5px 5px;
   opacity: 0.05;
 }
-.liner__inner { max-width: var(--measure); margin: 0 auto; position: relative; }
+/* sticky pin: the letter holds in place while scroll sweeps the highlight */
+.liner__pin {
+  position: sticky;
+  top: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  padding: var(--sp-2xl) var(--edge);
+}
+.liner__inner { max-width: var(--measure); margin: 0 auto; width: 100%; position: relative; will-change: transform; }
+/* scroll-driven read-along: words fade up from faint to ink, pink leading edge */
+.liner.is-progressive .liner__p .w,
+.liner.is-progressive .liner__sign .w {
+  color: color-mix(in srgb, var(--ink) 16%, transparent);
+  transition: color 200ms linear;
+}
+.liner.is-progressive .liner__p .w.on,
+.liner.is-progressive .liner__sign .w.on { color: var(--ink); }
+.liner.is-progressive .liner__sign .w.on { color: color-mix(in srgb, var(--ink) 70%, transparent); }
+.liner.is-progressive .w.edge { color: var(--riso-pink); }
 .liner__head {
   font-family: var(--font-mono);
   font-size: var(--fs-mono);
@@ -886,6 +919,13 @@ body.editing { overflow: hidden; }
   .hero__scroll .dot { animation: none !important; }
   .hero__artist .x { animation: none !important; }
   .frame { transform: none !important; }
+  /* scroll-driven sections fall back to plain, unpinned layout */
+  .liner__pin { position: static; min-height: 0; overflow: visible; }
+  .liner__inner { transform: none !important; }
+  .liner.is-progressive .w { color: var(--ink) !important; }
+  .liner.is-progressive .liner__sign .w { color: color-mix(in srgb, var(--ink) 70%, transparent) !important; }
+  .section.gallery { min-height: 0 !important; }
+  .gallery__pin { position: static; min-height: 0; }
   #petals { display: none !important; }
   .reveal { opacity: 1 !important; transform: none !important; }
 }

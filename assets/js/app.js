@@ -366,10 +366,24 @@
       if (!p.trim()) return;
       var el = document.createElement("p");
       el.className = "liner__p";
-      el.textContent = p.trim();
+      wordWrap(el, p.trim());
       body.appendChild(el);
     });
-    $("#liner-sign").textContent = content.closing || "";
+    var sign = $("#liner-sign");
+    sign.innerHTML = "";
+    wordWrap(sign, content.closing || "");
+    layoutStory(); // word list / pin heights changed
+  }
+  // wrap each word in <span class="w"> so scroll can highlight them one by one
+  function wordWrap(el, text) {
+    text.split(/(\s+)/).forEach(function (tok) {
+      if (!tok) return;
+      if (/^\s+$/.test(tok)) { el.appendChild(document.createTextNode(tok)); return; }
+      var s = document.createElement("span");
+      s.className = "w";
+      s.textContent = tok;
+      el.appendChild(s);
+    });
   }
 
   // ---- credits / 100 alasan ----
@@ -462,12 +476,18 @@
           if (fr.parentNode) fr.parentNode.removeChild(fr);
           galleryCount(wall.children.length);
           galleryParallax.refresh();
+          layoutStory();
         });
       }
       wall.appendChild(fr);
     });
     galleryCount(wall.children.length);
     galleryParallax.refresh();
+    layoutStory(); // wall width changed -> recompute the pinned scroll track
+    // images size asynchronously; recompute the track once each one lays out
+    [].slice.call(wall.querySelectorAll("img")).forEach(function (im) {
+      if (!im.complete) im.addEventListener("load", relayoutStory, { once: true });
+    });
     // first paint: wire auto-refresh so the wall follows the album seamlessly,
     // then pull the current album
     if (!albumBound && /^https?:/.test(location.protocol)) {
@@ -669,6 +689,7 @@
       }
     }
     updateNowSection();
+    updateStory();
     requestAnimationFrame(onFrame);
   }
   function updateNowSection() {
@@ -684,6 +705,76 @@
     if (best && nowSection) {
       var label = best.getAttribute("data-section");
       if (nowSection.textContent !== label) nowSection.textContent = label;
+    }
+  }
+
+  // --------------------------------------------------------------- scroll-driven story
+  // Two pinned sections react to scroll: the liner letter highlights word by word,
+  // and the gallery pans its photos horizontally as you scroll down.
+  var linerSec, linerPin, linerInner, linerWords = [], linerIdx = 0, linerEdge = null, linerOverflow = 0;
+  var gallerySec, galleryWall;
+  function padY(el) {
+    var cs = getComputedStyle(el);
+    return (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+  }
+  function debounce(fn, ms) {
+    var t;
+    return function () { clearTimeout(t); t = setTimeout(fn, ms); };
+  }
+  var relayoutStory = debounce(function () { layoutStory(); }, 80);
+  function layoutStory() {
+    var reduced = prefersReduced();
+    linerSec = $("#liner"); linerPin = $(".liner__pin"); linerInner = $("#liner-inner");
+    if (linerSec && linerInner) {
+      linerWords = [].slice.call(linerInner.querySelectorAll(".w"));
+      linerInner.style.transform = "none";
+      linerWords.forEach(function (w) { w.classList.remove("on", "edge"); });
+      linerIdx = 0; linerEdge = null;
+      if (reduced) {
+        linerSec.classList.remove("is-progressive"); linerSec.style.minHeight = ""; linerOverflow = 0;
+      } else {
+        linerSec.classList.add("is-progressive");
+        var avail = linerPin ? (linerPin.clientHeight - padY(linerPin)) : window.innerHeight;
+        linerOverflow = Math.max(0, linerInner.offsetHeight - avail);
+        linerSec.style.minHeight = Math.round(window.innerHeight + linerOverflow + window.innerHeight * 0.7) + "px";
+      }
+    }
+    gallerySec = $("#gallery"); galleryWall = $("#gallery-wall");
+    if (gallerySec && galleryWall) {
+      if (reduced) { gallerySec.style.minHeight = ""; }
+      else {
+        var extra = Math.max(0, galleryWall.scrollWidth - galleryWall.clientWidth);
+        gallerySec.style.minHeight = Math.round(window.innerHeight + extra) + "px";
+      }
+    }
+  }
+  function updateStory() {
+    if (prefersReduced()) return;
+    // Liner — pin the letter (pan it up if taller than the viewport), highlight
+    // words up to the scroll progress with a pink leading edge.
+    if (linerSec && linerWords.length) {
+      var lr = linerSec.getBoundingClientRect();
+      var lt = linerSec.offsetHeight - window.innerHeight;
+      var lp = lt > 0 ? clamp(-lr.top / lt, 0, 1) : 0;
+      if (linerOverflow) linerInner.style.transform = "translateY(" + (-lp * linerOverflow).toFixed(1) + "px)";
+      var idx = Math.round(lp * linerWords.length);
+      if (idx !== linerIdx) {
+        var i;
+        if (idx > linerIdx) { for (i = linerIdx; i < idx; i++) linerWords[i].classList.add("on"); }
+        else { for (i = idx; i < linerIdx; i++) linerWords[i].classList.remove("on"); }
+        if (linerEdge) linerEdge.classList.remove("edge");
+        linerEdge = idx > 0 ? linerWords[Math.min(idx, linerWords.length) - 1] : null;
+        if (linerEdge) linerEdge.classList.add("edge");
+        linerIdx = idx;
+      }
+    }
+    // Gallery — vertical scroll drives the horizontal pan (photos glide left -> right).
+    if (gallerySec && galleryWall) {
+      var gr = gallerySec.getBoundingClientRect();
+      var gt = gallerySec.offsetHeight - window.innerHeight;
+      var gp = gt > 0 ? clamp(-gr.top / gt, 0, 1) : 0;
+      var max = galleryWall.scrollWidth - galleryWall.clientWidth;
+      if (max > 0) galleryWall.scrollLeft = gp * max;
     }
   }
 
@@ -1381,7 +1472,14 @@
       setupCredits();
       setupKeyboard();
       wireGalleryParallax();
+      layoutStory();
       setSpin(false); // stopped until the song plays
+
+      // recompute the pinned scroll tracks once fonts/images settle and on resize
+      window.addEventListener("load", relayoutStory);
+      window.addEventListener("resize", debounce(layoutStory, 150));
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(relayoutStory);
+      setTimeout(relayoutStory, 400); // safety net if load already fired
 
       // hero entrance
       var tt = $("#hero-turntable");
