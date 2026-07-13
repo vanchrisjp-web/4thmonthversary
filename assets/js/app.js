@@ -540,46 +540,9 @@
     return fig;
   }
 
-  // 3D parallax for the gallery wall: frames tilt toward the cursor and swing in
-  // a coverflow-style depth as the wall scrolls (center faces forward, sides angle away).
+  // Gallery frames are flat (no 3D). Kept as a no-op so callers stay simple.
   var galleryParallax = { refresh: function () {} };
-  function wireGalleryParallax() {
-    var wall = $("#gallery-wall");
-    if (!wall) return;
-    var mx = 0, my = 0, raf = 0;
-    function apply() {
-      raf = 0;
-      var frames = wall.querySelectorAll(".frame");
-      if (!frames.length || prefersReduced()) return;
-      var wr = wall.getBoundingClientRect();
-      var cx = wr.width / 2;
-      for (var k = 0; k < frames.length; k++) {
-        var f = frames[k];
-        var r = f.getBoundingClientRect();
-        var fc = (r.left - wr.left) + r.width / 2;
-        var rel = Math.max(-1, Math.min(1, (fc - cx) / (cx || 1)));
-        var rotY = (rel * -7) + (mx * 3);
-        var rotX = (-my * 2.2);
-        var tz = (1 - Math.abs(rel)) * 26;
-        f.style.transform =
-          "rotateX(" + rotX.toFixed(2) + "deg) rotateY(" + rotY.toFixed(2) + "deg) translateZ(" + tz.toFixed(1) + "px)";
-      }
-    }
-    function schedule() { if (!raf) raf = requestAnimationFrame(apply); }
-    galleryParallax.refresh = schedule;
-    if (prefersReduced()) return;
-    wall.addEventListener("scroll", schedule, { passive: true });
-    wall.addEventListener("pointermove", function (e) {
-      var wr = wall.getBoundingClientRect();
-      mx = ((e.clientX - wr.left) / wr.width) * 2 - 1;
-      my = ((e.clientY - wr.top) / wr.height) * 2 - 1;
-      schedule();
-    }, { passive: true });
-    wall.addEventListener("pointerleave", function () { mx = 0; my = 0; schedule(); }, { passive: true });
-    window.addEventListener("resize", schedule, { passive: true });
-    window.addEventListener("scroll", schedule, { passive: true }); // re-settle as it enters view
-    schedule();
-  }
+  function wireGalleryParallax() {}
 
   // ---- back cover ----
   function renderBack() {
