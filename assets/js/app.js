@@ -1052,9 +1052,35 @@
         strip("Footer", inp("footer")) +
         strip("Passcode", inp("passcode")) +
         strip("Token terbit (KV)", "<input class='field' id='m-token' type='password' placeholder='opsional — untuk Mode B' value='" +
-          esc(localStorage.getItem(LS_TOKEN) || "") + "'><p class='hint'>Disimpan hanya di perangkat ini, bukan di content.json.</p>");
+          esc(localStorage.getItem(LS_TOKEN) || "") + "'><p class='hint'>Disimpan hanya di perangkat ini, bukan di content.json.</p>") +
+        strip("Link edit (bawa token ke HP/browser lain)", "<button class='btn' id='m-editlink' type='button'>Salin link edit</button>" +
+          "<p class='hint'>Buka link ini di HP/browser lain dan token terisi otomatis — nggak perlu ketik ulang. Rahasia, jangan dibagi.</p>") +
+        strip("Perbaiki suara lama (Safari / iPhone)", "<button class='btn' id='m-fixaudio' type='button'>Ubah rekaman → format universal</button>" +
+          "<p class='hint' id='m-fixaudio-h'>Rekaman lama format WebM nggak bisa diputar di Safari/iPhone. Tekan ini <b>dari Chrome/Firefox</b> untuk ubah semua ke WAV biar kedengeran di semua HP. Sekali aja.</p>");
       bindInputs(p);
       $("#m-token").addEventListener("input", function () { localStorage.setItem(LS_TOKEN, this.value); });
+      $("#m-editlink").addEventListener("click", function () {
+        var token = localStorage.getItem(LS_TOKEN);
+        if (!token) { toast("Isi 'Token terbit (KV)' dulu.", true); return; }
+        var link = location.origin + "/?k=" + encodeURIComponent(token) + "#edit";
+        (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject())
+          .then(function () { toast("Link edit disalin. Buka di HP/browser lain."); })
+          .catch(function () { window.prompt("Salin link edit ini:", link); });
+      });
+      $("#m-fixaudio").addEventListener("click", function () {
+        var token = localStorage.getItem(LS_TOKEN);
+        if (!token) { toast("Isi 'Token terbit (KV)' dulu.", true); return; }
+        if (!(window.AudioContext || window.webkitAudioContext)) { toast("Browser ini nggak bisa konversi. Pakai Chrome/Firefox.", true); return; }
+        var btn = this, h = $("#m-fixaudio-h");
+        btn.disabled = true;
+        normalizeExistingAudio(token, function (d, t) { if (h) h.textContent = "Mengonversi " + d + "/" + t + "…"; })
+          .then(function (res) {
+            if (h) h.textContent = res.fixed + " suara dikonversi" + (res.failed ? ", " + res.failed + " gagal" : "") + ". Menyimpan & menerbitkan…";
+            persist(token, /^https?:/.test(location.protocol), res.failed);
+            btn.disabled = false;
+          })
+          .catch(function () { btn.disabled = false; toast("Gagal konversi audio.", true); });
+      });
       $("#m-reset").addEventListener("click", function () {
         if (confirm("Buang preview lokal di perangkat ini dan muat versi yang sudah terbit?")) {
           try { localStorage.removeItem(LS_CONTENT); } catch (e) {}
@@ -1177,7 +1203,10 @@
         mr.ondataavailable = function (e) { if (e.data && e.data.size) recChunks.push(e.data); };
         mr.onstop = function () { // local mr — stopRecording() nulls the module var before this async fires
           var blob = new Blob(recChunks, { type: mr.mimeType || mime || "audio/webm" });
-          blobToDataURL(blob).then(function (d) {
+          // convert to WAV so it plays on Safari/iOS too; fall back to raw on failure
+          audioBlobToWav(blob).catch(function () { return blob; }).then(function (out) {
+            return blobToDataURL(out);
+          }).then(function (d) {
             content.tracks[i].commentary = d; renderTracks(); checkSize();
             toast("Rekaman tersimpan. Jangan lupa Save atau Export.");
           });
@@ -1331,6 +1360,29 @@
       });
       return Promise.all(jobs).then(function () { return { moved: moved, failed: failed }; });
     }
+    // One-time repair: re-encode already-published voice notes that are WebM/Opus
+    // (silent on Safari/iOS) into universal WAV, then re-upload. Run from a browser
+    // that can decode WebM (Chrome/Firefox).
+    function normalizeExistingAudio(token, onProgress) {
+      var urls = [];
+      eachMediaField(function (obj, key) {
+        if (key === "commentary" && typeof obj[key] === "string" && obj[key].indexOf("/api/media/") === 0) urls.push({ obj: obj, key: key });
+      });
+      var total = urls.length, done = 0, fixed = 0, failed = 0;
+      // process sequentially to keep memory/CPU sane
+      return urls.reduce(function (chain, item) {
+        return chain.then(function () {
+          return fetch(item.obj[item.key]).then(function (r) { return r.blob(); }).then(function (b) {
+            var t = (b.type || "").toLowerCase();
+            if (/wav|mpeg|mp3|mp4|aac/.test(t)) return; // already universal
+            return audioBlobToWav(b).then(function (wav) { return uploadMedia(wav, "audio/wav", token); })
+              .then(function (url) { item.obj[item.key] = url; fixed++; });
+          }).catch(function () { failed++; }).then(function () {
+            done++; if (onProgress) onProgress(done, total);
+          });
+        });
+      }, Promise.resolve()).then(function () { return { fixed: fixed, failed: failed }; });
+    }
     function save() {
       var token = localStorage.getItem(LS_TOKEN);
       var http = /^https?:/.test(location.protocol);
@@ -1392,6 +1444,48 @@
       fr.readAsDataURL(blob);
     });
   }
+  // Recordings come out as WebM/Opus (Firefox/Chrome) which Safari & iOS can't play.
+  // Decode and re-encode to mono 22.05kHz WAV — playable in EVERY browser.
+  function audioBlobToWav(blob) {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    var OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!AC) return Promise.reject(new Error("no AudioContext"));
+    return blob.arrayBuffer().then(function (buf) {
+      var ctx = new AC();
+      return new Promise(function (res, rej) {
+        ctx.decodeAudioData(buf, function (ab) { res(ab); }, function (e) { rej(e || new Error("decode failed")); });
+      }).then(function (audioBuffer) {
+        try { ctx.close(); } catch (e) {}
+        if (!OAC) return encodeWavMono(audioBuffer);
+        // resample + downmix to mono 22.05kHz to keep files small
+        var rate = 22050, frames = Math.max(1, Math.ceil(audioBuffer.duration * rate));
+        var off = new OAC(1, frames, rate);
+        var src = off.createBufferSource();
+        src.buffer = audioBuffer; src.connect(off.destination); src.start(0);
+        return off.startRendering().then(function (r) { return encodeWavMono(r); });
+      });
+    });
+  }
+  function encodeWavMono(audioBuffer) {
+    var chs = audioBuffer.numberOfChannels, len = audioBuffer.length, rate = audioBuffer.sampleRate;
+    var mono = new Float32Array(len);
+    for (var c = 0; c < chs; c++) {
+      var d = audioBuffer.getChannelData(c);
+      for (var i = 0; i < len; i++) mono[i] += d[i] / chs;
+    }
+    var dataSize = len * 2, out = new ArrayBuffer(44 + dataSize), view = new DataView(out);
+    var ws = function (off, s) { for (var k = 0; k < s.length; k++) view.setUint8(off + k, s.charCodeAt(k)); };
+    ws(0, "RIFF"); view.setUint32(4, 36 + dataSize, true); ws(8, "WAVE");
+    ws(12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+    view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+    ws(36, "data"); view.setUint32(40, dataSize, true);
+    var off = 44;
+    for (var j = 0; j < len; j++) {
+      var s = Math.max(-1, Math.min(1, mono[j]));
+      view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true); off += 2;
+    }
+    return new Blob([out], { type: "audio/wav" });
+  }
   function downscaleImage(file, maxW, quality) {
     maxW = maxW || 1400; quality = quality || 0.82;
     return new Promise(function (res, rej) {
@@ -1426,6 +1520,14 @@
     nowSection = $("#now-section");
     heroStage = $(".hero__stage");
     heroTitles = $(".hero__titles");
+    // "edit link" carries the publish token in ?k= — save it, then scrub the URL
+    try {
+      var k = new URLSearchParams(location.search).get("k");
+      if (k) {
+        localStorage.setItem(LS_TOKEN, k);
+        history.replaceState(null, "", location.pathname + location.hash);
+      }
+    } catch (e) {}
     initPetals();
 
     loadContent().then(function (c) {
