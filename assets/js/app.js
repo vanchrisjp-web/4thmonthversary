@@ -122,6 +122,9 @@
   var startDate = null;
   var audioEl = $("#song");
   var isPlaying = false;
+  var songVolume = (function () { var v = parseFloat(localStorage.getItem("sideA:vol")); return (isFinite(v) && v >= 0 && v <= 1) ? v : 1; })();
+  var songDucked = false;               // true while a voice note plays over the song
+  var duckSong = function () {};        // set by setupAudio; used by the commentary player
   var openTrack = null; // n of open track
 
   // --------------------------------------------------------------- load
@@ -290,11 +293,11 @@
     au.addEventListener("timeupdate", function () { showTime(); paint(); });
     function reset() {
       node.classList.remove("playing"); btn.textContent = "⏵";
-      if (ducked) { audioEl.volume = 1; ducked = false; } // restore the BGM
+      if (ducked) { duckSong(false); ducked = false; } // restore the BGM to the user's volume
     }
     au.addEventListener("play", function () {
       node.classList.add("playing"); btn.textContent = "⏸";
-      if (!audioEl.paused) { audioEl.volume = 0.18; ducked = true; } // duck the BGM to a background level
+      duckSong(true); ducked = true; // duck the song under the voice note (relative to user volume)
     });
     au.addEventListener("pause", reset);
     au.addEventListener("ended", function () { reset(); au.currentTime = 0; paint(); });
@@ -763,14 +766,95 @@
         if (i >= steps) { clearInterval(fadeTimer); fadeTimer = null; if (done) done(); }
       }, 30);
     }
+
+    // ---- song volume (music only; recordings duck relative to it) ----
+    var DUCK = 0.18;
+    function volTarget() { return songDucked ? songVolume * DUCK : songVolume; }
+    var ring = $("#vol-ring"), ringArc = $("#vol-ring-arc"), ringKnob = $("#vol-ring-knob"), ringHit = $("#vol-ring-hit");
+    var volBar = $("#vol-bar"), volFill = $("#vol-fill"), spk = $("#vol-mute");
+    var RC = 2 * Math.PI * 47;
+    function setVolUI() {
+      var v = songVolume;
+      if (ringArc) ringArc.setAttribute("stroke-dasharray", (v * RC).toFixed(2) + " " + RC.toFixed(2));
+      if (ringKnob) {
+        var a = (-90 + v * 360) * Math.PI / 180;
+        ringKnob.setAttribute("cx", (50 + 47 * Math.cos(a)).toFixed(2));
+        ringKnob.setAttribute("cy", (50 + 47 * Math.sin(a)).toFixed(2));
+      }
+      if (ring) ring.setAttribute("aria-valuenow", Math.round(v * 100));
+      if (volFill) volFill.style.setProperty("--v", (v * 100) + "%");
+      if (volBar) volBar.setAttribute("aria-valuenow", Math.round(v * 100));
+      if (spk) spk.classList.toggle("is-muted", v === 0);
+    }
+    function setSongVolume(v) {
+      songVolume = Math.max(0, Math.min(1, v));
+      try { localStorage.setItem("sideA:vol", String(songVolume)); } catch (e) {}
+      if (fadeTimer) { clearInterval(fadeTimer); fadeTimer = null; }
+      if (audioUnlocked && !audioEl.paused) audioEl.volume = volTarget();
+      setVolUI();
+    }
+    duckSong = function (on) {
+      songDucked = !!on;
+      if (!audioUnlocked) return;
+      if (!audioEl.paused) fadeVolume(volTarget(), 220);
+      else audioEl.volume = volTarget();
+    };
+    // disc ring: drag the knob around the rim
+    if (ring && ringHit) {
+      var lastVol = null, dragging = false;
+      var ringVol = function (e) {
+        var r = ring.getBoundingClientRect();
+        var ang = Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI;
+        ang = (ang + 90 + 360) % 360; // 0 at top, clockwise
+        var v = ang / 360;
+        if (lastVol != null && Math.abs(v - lastVol) > 0.5) v = lastVol > 0.5 ? 1 : 0; // don't wrap across the top seam
+        lastVol = v; setSongVolume(v);
+      };
+      ringHit.addEventListener("pointerdown", function (e) {
+        dragging = true; lastVol = null; ring.classList.add("is-drag");
+        try { ringHit.setPointerCapture(e.pointerId); } catch (er) {}
+        ringVol(e); e.preventDefault();
+      });
+      ringHit.addEventListener("pointermove", function (e) { if (dragging) ringVol(e); });
+      var endRing = function () { dragging = false; lastVol = null; ring.classList.remove("is-drag"); };
+      ringHit.addEventListener("pointerup", endRing);
+      ringHit.addEventListener("pointercancel", endRing);
+      ring.addEventListener("keydown", function (e) {
+        var s = /Up|Right/.test(e.key) ? 0.05 : (/Down|Left/.test(e.key) ? -0.05 : 0);
+        if (s) { setSongVolume(songVolume + s); e.preventDefault(); }
+      });
+    }
+    // bottom bar: draggable volume bar + speaker mute
+    if (volBar) {
+      var bdrag = false;
+      var barVol = function (e) { var r = volBar.getBoundingClientRect(); setSongVolume((e.clientX - r.left) / r.width); };
+      volBar.addEventListener("pointerdown", function (e) { bdrag = true; try { volBar.setPointerCapture(e.pointerId); } catch (er) {} barVol(e); e.preventDefault(); });
+      volBar.addEventListener("pointermove", function (e) { if (bdrag) barVol(e); });
+      var endBar = function () { bdrag = false; };
+      volBar.addEventListener("pointerup", endBar);
+      volBar.addEventListener("pointercancel", endBar);
+      volBar.addEventListener("keydown", function (e) {
+        var s = /Up|Right/.test(e.key) ? 0.05 : (/Down|Left/.test(e.key) ? -0.05 : 0);
+        if (s) { setSongVolume(songVolume + s); e.preventDefault(); }
+      });
+    }
+    if (spk) {
+      var preMute = songVolume > 0 ? songVolume : 1;
+      spk.addEventListener("click", function () {
+        if (songVolume > 0) { preMute = songVolume; setSongVolume(0); }
+        else setSongVolume(preMute > 0 ? preMute : 1);
+      });
+    }
+    setVolUI();
+
     function unlockAudio() {
       if (audioUnlocked) return;
       audioUnlocked = true;
       audioEl.muted = false;
       try { audioEl.currentTime = 0; } catch (e) {}
       audioEl.volume = 0;
-      if (audioEl.paused) audioEl.play().then(function () { fadeVolume(1, 700); }).catch(function () { fadeVolume(1, 700); });
-      else fadeVolume(1, 700); // muted autoplay already running -> fade the sound in
+      if (audioEl.paused) audioEl.play().then(function () { fadeVolume(volTarget(), 700); }).catch(function () { fadeVolume(volTarget(), 700); });
+      else fadeVolume(volTarget(), 700); // muted autoplay already running -> fade the sound in
     }
     function refresh() {
       icon.textContent = isPlaying ? "⏸" : "▶";
@@ -786,9 +870,9 @@
       if (!audioUnlocked) { unlockAudio(); return; } // first tap unmutes the autoplaying song
       if (audioEl.paused) {
         audioEl.volume = 0;
-        audioEl.play().then(function () { fadeVolume(1, 450); }).catch(function () { toast("Gagal memutar audio.", true); });
+        audioEl.play().then(function () { fadeVolume(volTarget(), 450); }).catch(function () { toast("Gagal memutar audio.", true); });
       } else {
-        fadeVolume(0, 450, function () { audioEl.pause(); audioEl.volume = 1; }); // fade out, then pause
+        fadeVolume(0, 450, function () { audioEl.pause(); audioEl.volume = songVolume; }); // fade out, then pause
       }
     }
     btn.addEventListener("click", togglePlay);

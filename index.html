@@ -47,6 +47,12 @@
               <span class="tonearm__head"></span>
             </div>
             <button class="disc-toggle" id="disc-toggle" type="button" aria-label="Putar atau jeda lagu"><span class="ic" id="disc-toggle-icon">▶</span></button>
+            <svg class="vol-ring" id="vol-ring" viewBox="0 0 100 100" role="slider" aria-label="Volume lagu" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" tabindex="0">
+              <circle class="vol-ring__track" cx="50" cy="50" r="47"></circle>
+              <circle class="vol-ring__arc" id="vol-ring-arc" cx="50" cy="50" r="47" transform="rotate(-90 50 50)"></circle>
+              <circle class="vol-ring__knob" id="vol-ring-knob" cx="50" cy="3" r="3.4"></circle>
+              <circle class="vol-ring__hit" id="vol-ring-hit" cx="50" cy="50" r="47"></circle>
+            </svg>
           </div>
         </div>
       </div>
@@ -158,6 +164,12 @@
       <span class="v" id="now-section">Sisi A</span>
     </div>
     <div class="nowbar__ctrls">
+      <div class="nowbar__vol">
+        <button class="nowbar__spk" id="vol-mute" type="button" aria-label="Bisukan lagu">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 4V5L7 9H3z"></path><path class="nowbar__spk-wave" d="M15.5 8.8a4.2 4.2 0 0 1 0 6.4M18 6.4a7.6 7.6 0 0 1 0 11.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></svg>
+        </button>
+        <button class="nowbar__volbar" id="vol-bar" type="button" role="slider" aria-label="Volume lagu" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><span class="nowbar__volfill" id="vol-fill"></span></button>
+      </div>
       <span class="nowbar__time" id="now-runtime">00:00</span>
       <button class="playbtn" id="playbtn" type="button" aria-label="Putar lagu" aria-pressed="false">
         <span id="playbtn-icon">▶</span>

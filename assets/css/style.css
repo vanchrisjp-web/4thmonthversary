@@ -331,6 +331,26 @@ body.song-playing .tonearm__head { animation-play-state: running; } /* needle ri
 .disc-toggle:hover .ic, .disc-toggle:focus-visible .ic { opacity: 1; transform: scale(1.06); }
 .disc-toggle:active .ic { transform: scale(0.9); }
 
+/* volume ring around the disc rim — drag the knob around; full = loud, empty = min */
+.vol-ring { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 6; overflow: visible; pointer-events: none; }
+.vol-ring:focus-visible { outline: none; }
+.vol-ring:focus-visible .vol-ring__knob { r: 4.4; }
+.vol-ring__track { fill: none; stroke: color-mix(in srgb, var(--paper) 13%, transparent); stroke-width: 1.4; }
+.vol-ring__arc {
+  fill: none; stroke: var(--riso-pink); stroke-width: 2.2; stroke-linecap: round;
+  filter: drop-shadow(0 0 2.5px color-mix(in srgb, var(--riso-pink) 55%, transparent));
+}
+.vol-ring__knob {
+  fill: var(--paper); stroke: var(--riso-pink); stroke-width: 1.4;
+  transition: r var(--dur-fast) var(--ease-spring);
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+}
+.vol-ring__hit { fill: none; stroke: transparent; stroke-width: 9; pointer-events: stroke; cursor: grab; }
+.vol-ring.is-drag { cursor: grabbing; }
+.vol-ring.is-drag .vol-ring__hit { cursor: grabbing; }
+.vol-ring.is-drag .vol-ring__knob { r: 4.6; }
+.turntable:hover .vol-ring__track { stroke: color-mix(in srgb, var(--paper) 22%, transparent); }
+
 /* =============================== TRACKLIST =============================== */
 .tracklist { display: flex; flex-direction: column; }
 .track {
@@ -757,6 +777,38 @@ body.song-playing .tonearm__head { animation-play-state: running; } /* needle ri
 .nowbar__info .v { font-size: 0.98rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nowbar__ctrls { display: flex; align-items: center; gap: var(--sp-sm); }
 .nowbar__time { font-family: var(--font-mono); font-size: var(--fs-mono); color: var(--riso-blue); }
+
+/* song volume: speaker toggle + a thin draggable bar */
+.nowbar__vol { display: flex; align-items: center; gap: 0.5rem; }
+.nowbar__spk {
+  width: 22px; height: 22px; padding: 0; border: 0; background: none; cursor: pointer;
+  color: var(--muted); display: grid; place-items: center; flex: none;
+  transition: color var(--dur) var(--ease);
+}
+.nowbar__spk svg { width: 17px; height: 17px; }
+.nowbar__spk:hover { color: var(--paper); }
+.nowbar__spk.is-muted { color: var(--riso-pink); }
+.nowbar__spk.is-muted .nowbar__spk-wave { opacity: 0; }
+.nowbar__volbar {
+  position: relative; width: clamp(48px, 9vw, 104px); height: 16px; padding: 0;
+  border: 0; background: none; cursor: pointer; flex: none;
+}
+.nowbar__volbar::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 2px; transform: translateY(-50%);
+  background: color-mix(in srgb, var(--paper) 20%, transparent);
+}
+.nowbar__volfill {
+  position: absolute; left: 0; top: 50%; height: 2px; width: var(--v, 100%); transform: translateY(-50%);
+  background: var(--riso-pink); transition: height var(--dur) var(--ease);
+}
+.nowbar__volfill::after {
+  content: ""; position: absolute; right: -4px; top: 50%; width: 9px; height: 9px; transform: translate(0, -50%);
+  border-radius: 50%; background: var(--paper); box-shadow: 0 0 0 1.5px var(--riso-pink);
+  transition: transform var(--dur-fast) var(--ease-spring);
+}
+.nowbar__volbar:hover .nowbar__volfill, .nowbar__volbar:focus-visible .nowbar__volfill { height: 4px; }
+.nowbar__volbar:hover .nowbar__volfill::after { transform: translate(0, -50%) scale(1.2); }
+@media (max-width: 520px) { .nowbar__volbar { display: none; } } /* keep just the mute toggle on small screens */
 .playbtn {
   width: 44px; height: 44px;
   border-radius: 50%;
