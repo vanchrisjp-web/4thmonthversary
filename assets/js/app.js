@@ -127,16 +127,23 @@
   // --------------------------------------------------------------- load
   function loadContent() {
     var base = window.SIDE_A_DEFAULTS || {};
-    var merged = base;
+    var merged = base, kvContent = null;
     return fetchJSON("content.json")
       .then(function (json) { if (json) merged = deepMerge(merged, json); })
       .then(function () { return fetchJSON("/api/content"); })
-      .then(function (kv) { if (kv) merged = deepMerge(merged, kv); })
+      .then(function (kv) { if (kv) { merged = deepMerge(merged, kv); kvContent = kv; } })
       .catch(function () {})
       .then(function () {
+        // Published (KV) content is the source of truth. Only apply this device's
+        // local preview if nothing is published, or its edits are strictly newer —
+        // otherwise a stale local cache would hide freshly published media.
         try {
           var ls = localStorage.getItem(LS_CONTENT);
-          if (ls) merged = deepMerge(merged, JSON.parse(ls));
+          if (ls) {
+            var lsObj = JSON.parse(ls);
+            var apply = !kvContent || (((lsObj && lsObj._savedAt) || 0) > (kvContent._savedAt || 0));
+            if (apply) merged = deepMerge(merged, lsObj);
+          }
         } catch (e) {}
         return merged;
       });
@@ -1396,6 +1403,7 @@
       }
     }
     function persist(token, http, failed) {
+      content._savedAt = Date.now(); // published KV + local carry the same stamp; newest wins on load
       var localOk = true;
       try { localStorage.setItem(LS_CONTENT, JSON.stringify(content)); }
       catch (e) { localOk = false; }
