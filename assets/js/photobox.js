@@ -27,6 +27,7 @@
 
   var pc = null, localStream = null, role = null, myCode = null;
   var connected = false, shooting = false, selectedLayout = "side", lastCanvas = null;
+  var dc = null, guestCounting = false; // data channel: sync the countdown to both sides
 
   // ------------------------------------------------------------ screens/status
   function show(id) {
@@ -53,6 +54,7 @@
   }
   function cleanup() {
     stopCandPolls();
+    if (dc) { try { dc.close(); } catch (e) {} dc = null; }
     if (pc) { try { pc.close(); } catch (e) {} pc = null; }
     connected = false; remoteReady = false; candQueue = [];
   }
@@ -103,6 +105,9 @@
     relayCount = 0;
     var p = new RTCPeerConnection({ iceServers: ICE.iceServers, iceTransportPolicy: iceRelay ? "relay" : "all" });
     localStream.getTracks().forEach(function (t) { p.addTrack(t, localStream); });
+    // data channel to broadcast the countdown so BOTH sides pose together
+    if (role === "host") { dc = p.createDataChannel("pb"); setupDC(dc); }
+    else { p.ondatachannel = function (e) { dc = e.channel; setupDC(dc); }; }
     p.ontrack = function (e) {
       var rv = $("#remoteVideo"); if (rv) rv.srcObject = e.streams[0];
       var off = $("#remote-off"); if (off) off.style.display = "none";
@@ -272,21 +277,25 @@
     g.fillStyle = "#9A958C"; g.font = "400 12px 'Space Mono', monospace"; g.textAlign = "right"; g.fillText("YS-004", W - 18, y);
     heartLine(g, W / 2, y, "700 18px 'Space Mono', monospace");
   }
+  // Cells are 4:3 to match the live preview (.feed is aspect-ratio 4/3, object-fit
+  // cover) — so what you frame in the preview is exactly what the result keeps.
+  var AR = 3 / 4; // cell height / width
   function compose(layout, pairs) {
     var P = 18, FT = 64, ts = tsText(), c, g;
     if (layout === "stack") {
-      var Ws = 620, Hs = 1140, cHs = (Hs - FT - 3 * P) / 2;
+      var Ws = 620, cwS = Ws - 2 * P, chS = Math.round(cwS * AR);
+      var Hs = 3 * P + 2 * chS + FT;
       c = mk(Ws, Hs); g = c.getContext("2d");
-      drawCover(g, pairs[0].a, P, P, Ws - 2 * P, cHs);
-      drawCover(g, pairs[0].b, P, 2 * P + cHs, Ws - 2 * P, cHs);
+      drawCover(g, pairs[0].a, P, P, cwS, chS);
+      drawCover(g, pairs[0].b, P, 2 * P + chS, cwS, chS);
       footerBand(g, Ws, Hs, FT, ts); return c;
     }
     if (layout === "strip") {
-      var W = 620, HEAD = 66, rowH = 300, gap = 14, rows = pairs.length;
+      var W = 620, HEAD = 66, gap = 14, rows = pairs.length;
+      var cw = (W - 2 * P - gap) / 2, rowH = Math.round(cw * AR);
       var H = HEAD + rows * rowH + (rows - 1) * gap + FT + P;
       c = mk(W, H); g = c.getContext("2d");
       heartLine(g, W / 2, HEAD / 2 + 4, "800 26px 'Archivo', sans-serif");
-      var cw = (W - 2 * P - gap) / 2;
       for (var i = 0; i < rows; i++) {
         var yy = HEAD + i * (rowH + gap);
         drawCover(g, pairs[i].a, P, yy, cw, rowH);
@@ -294,8 +303,9 @@
       }
       footerBand(g, W, H, FT, ts); return c;
     }
-    // side (default)
-    var Wd = 1120, Hd = 760, cHd = Hd - FT - 2 * P, cwd = (Wd - 3 * P) / 2;
+    // side (default): two 4:3 cells
+    var Wd = 1120, cwd = (Wd - 3 * P) / 2, cHd = Math.round(cwd * AR);
+    var Hd = 2 * P + cHd + FT;
     c = mk(Wd, Hd); g = c.getContext("2d");
     drawCover(g, pairs[0].a, P, P, cwd, cHd);
     drawCover(g, pairs[0].b, 2 * P + cwd, P, cwd, cHd);
@@ -311,6 +321,19 @@
       return wait(850).then(function () { return step(k - 1); });
     })(from);
   }
+  // data channel: peer messages sync the countdown so both pose at the same time
+  function setupDC(ch) {
+    ch.onmessage = function (e) {
+      var m; try { m = JSON.parse(e.data); } catch (er) { return; }
+      if (m && m.t === "cd") guestCountdown(m.n || 3); // partner started a shot — count down here too
+    };
+  }
+  function sendDC(obj) { try { if (dc && dc.readyState === "open") dc.send(JSON.stringify(obj)); } catch (e) {} }
+  function guestCountdown(from) {
+    if (guestCounting || shooting) return; // don't stack with our own capture
+    guestCounting = true;
+    doCountdown(from || 3).then(function () { guestCounting = false; });
+  }
 
   function runSession() {
     if (shooting || !connected) return;
@@ -324,6 +347,7 @@
     })().then(function () {
       return (function loop(i) {
         if (i >= n) return Promise.resolve();
+        sendDC({ t: "cd", n: 3 }); // tell the partner to count down + pose too
         return doCountdown(3).then(function () {
           pairs.push(grabPair());
           return (i < n - 1 ? wait(800) : Promise.resolve()).then(function () { return loop(i + 1); });
