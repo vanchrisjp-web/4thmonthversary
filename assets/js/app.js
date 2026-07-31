@@ -122,6 +122,7 @@
   var startDate = null;
   var audioEl = $("#song");
   var isPlaying = false;
+  var refreshSurprise = function () {}; // set by setupSurprise; keeps the hint text live
   var songVolume = (function () { var v = parseFloat(localStorage.getItem("sideA:vol")); return (isFinite(v) && v >= 0 && v <= 1) ? v : 1; })();
   var songDucked = false;               // true while a voice note plays over the song
   var duckSong = function () {};        // set by setupAudio; used by the commentary player
@@ -183,6 +184,7 @@
     renderCredits();
     renderGallery();
     renderBack();
+    refreshSurprise();
 
     $("#footer").textContent = content.footer || "";
     updateRuntime(true);
@@ -918,6 +920,92 @@
     });
   }
 
+  // --------------------------------------------------------------- surprise (girlfriend day)
+  function strelitziaSVG() {
+    return "<svg class='strelitzia' viewBox='0 0 120 130' aria-hidden='true'>" +
+      "<path class='stem' d='M40 130 Q38 108 50 92'/>" +
+      "<path class='spathe' d='M14 92 Q42 80 92 90 Q74 100 44 100 Q24 100 14 92 Z'/>" +
+      "<path class='sepal-a' d='M52 90 L44 30 L60 88 Z'/>" +
+      "<path class='sepal-b' d='M60 90 L66 20 L74 88 Z'/>" +
+      "<path class='sepal-a' d='M70 90 L88 34 L82 90 Z'/>" +
+      "<path class='blue' d='M56 92 L70 58 L80 92 Z'/>" +
+      "</svg>";
+  }
+  function surprisePetals(canvas) {
+    if (!canvas || !canvas.getContext) return function () {};
+    var g = canvas.getContext("2d"), raf = 0, W = 0, H = 0, parts = [];
+    var cols = ["#F5822B", "#FF9E4A", "#FF4A7D", "#1C4FD8"];
+    function resize() { W = canvas.width = canvas.offsetWidth; H = canvas.height = canvas.offsetHeight; }
+    function mk() { return { x: Math.random() * W, y: Math.random() * -H, r: 5 + Math.random() * 7, s: 0.5 + Math.random() * 1.1, a: Math.random() * 6.28, va: (Math.random() - 0.5) * 0.05, c: cols[Math.floor(Math.random() * cols.length)], sway: 0.4 + Math.random() }; }
+    resize();
+    var N = Math.max(14, Math.min(34, Math.round(W / 34)));
+    for (var i = 0; i < N; i++) parts.push(mk());
+    function draw() {
+      g.clearRect(0, 0, W, H);
+      for (var j = 0; j < parts.length; j++) {
+        var p = parts[j];
+        p.y += p.s; p.x += Math.sin(p.y / 42) * p.sway * 0.5; p.a += p.va;
+        if (p.y > H + 20) { parts[j] = mk(); parts[j].y = -12; continue; }
+        g.save(); g.translate(p.x, p.y); g.rotate(p.a); g.globalAlpha = 0.85; g.fillStyle = p.c;
+        g.beginPath(); g.ellipse(0, 0, p.r * 0.5, p.r, 0, 0, 6.283); g.fill(); g.restore();
+      }
+      raf = requestAnimationFrame(draw);
+    }
+    window.addEventListener("resize", resize);
+    draw();
+    return function () { cancelAnimationFrame(raf); window.removeEventListener("resize", resize); if (g) g.clearRect(0, 0, W, H); };
+  }
+  function setupSurprise() {
+    var hint = $("#surprise-hint"), modal = $("#surprise");
+    if (!hint || !modal) return;
+    var blooms = $("#surprise-blooms");
+    if (blooms) blooms.innerHTML =
+      "<div class='bloom b-md'>" + strelitziaSVG() + "</div>" +
+      "<div class='bloom b-sm'>" + strelitziaSVG() + "</div>" +
+      "<div class='bloom b-lg'>" + strelitziaSVG() + "</div>";
+    var lastFocus = null, petalStop = null;
+    function render() {
+      var s = content.surprise || {};
+      hint.style.display = (s.message || s.title) ? "" : "none";
+      var ht = $("#surprise-hint-text"); if (ht) ht.textContent = s.hint || "Buat kamu 🌸";
+      $("#surprise-subtitle").textContent = s.subtitle || "";
+      $("#surprise-title").textContent = s.title || "";
+      $("#surprise-sign").textContent = s.sign || "";
+      $("#surprise-msg").textContent = s.message || "";
+      var ph = $("#surprise-photos"); ph.innerHTML = "";
+      (s.photos || []).forEach(function (src, i) {
+        if (!src) return;
+        var fig = document.createElement("figure");
+        fig.style.setProperty("--r", ((i % 2 ? 1 : -1) * (2 + (i % 3))) + "deg");
+        fig.style.animationDelay = (140 + i * 90) + "ms";
+        var img = document.createElement("img"); img.src = src; img.alt = "Foto kita"; img.loading = "lazy";
+        fig.appendChild(img); ph.appendChild(fig);
+      });
+    }
+    function open() {
+      render();
+      lastFocus = document.activeElement;
+      modal.hidden = false; void modal.offsetWidth; modal.classList.add("open");
+      document.body.style.overflow = "hidden";
+      var cl = $("#surprise-close"); if (cl) cl.focus();
+      if (!prefersReduced()) petalStop = surprisePetals($("#surprise-petals"));
+      // opening is a user gesture -> the song unmutes on its own (window click listener); we never pause it
+    }
+    function close() {
+      modal.classList.remove("open");
+      document.body.style.overflow = "";
+      if (petalStop) { petalStop(); petalStop = null; }
+      setTimeout(function () { modal.hidden = true; }, 380);
+      if (lastFocus && lastFocus.focus) try { lastFocus.focus(); } catch (e) {}
+    }
+    hint.addEventListener("click", open);
+    $("#surprise-close").addEventListener("click", close);
+    $("#surprise-backdrop").addEventListener("click", close);
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !modal.hidden) close(); });
+    refreshSurprise = render;
+    render();
+  }
+
   // --------------------------------------------------------------- reveals
   function setupReveals() {
     var els = $$(".reveal");
@@ -1074,11 +1162,12 @@
         "<div class='edit__wrap'>" +
           "<div class='tabs' role='tablist'>" +
             tabBtn("master", "Master", true) + tabBtn("tracks", "Tracks") +
-            tabBtn("credits", "Kredit") + tabBtn("hidden", "Rahasia") +
+            tabBtn("credits", "Kredit") + tabBtn("surprise", "Kejutan") + tabBtn("hidden", "Rahasia") +
           "</div>" +
           "<div class='panel on' id='p-master'></div>" +
           "<div class='panel' id='p-tracks'></div>" +
           "<div class='panel' id='p-credits'></div>" +
+          "<div class='panel' id='p-surprise'></div>" +
           "<div class='panel' id='p-hidden'></div>" +
         "</div>";
       $("#ed-close").addEventListener("click", function () { location.hash = ""; });
@@ -1087,7 +1176,7 @@
       $$(".tab", root).forEach(function (b) {
         b.addEventListener("click", function () { selectTab(b.dataset.tab); });
       });
-      renderMaster(); renderTracks(); renderCredits2(); renderHidden();
+      renderMaster(); renderTracks(); renderCredits2(); renderSurpriseEditor(); renderHidden();
     }
     function tabBtn(id, label, sel) {
       return "<button class='tab' role='tab' data-tab='" + id + "' aria-selected='" + (sel ? "true" : "false") +
@@ -1372,6 +1461,59 @@
       renderCredits2();
     }
 
+    // ---- Surprise (girlfriend day) ----
+    function renderSurpriseEditor() {
+      var p = $("#p-surprise");
+      var s = content.surprise || (content.surprise = { hint: "", title: "", subtitle: "", message: "", sign: "", photos: [] });
+      if (!s.photos) s.photos = [];
+      var sinp = function (f) { return "<input class='field' data-sbind='" + f + "' type='text' value='" + esc(s[f] || "") + "'>"; };
+      var stxt = function (f, r) { return "<textarea class='field' data-sbind='" + f + "' rows='" + (r || 4) + "'>" + esc(s[f] || "") + "</textarea>"; };
+      p.innerHTML =
+        strip("Teks umpan (yang keliatan buat mancing dia klik)", sinp("hint")) +
+        strip("Judul", sinp("title")) +
+        strip("Sub-judul", sinp("subtitle")) +
+        strip("Pesan", stxt("message", 8)) +
+        strip("Tanda tangan", sinp("sign")) +
+        strip("Foto dia", "<div class='sur-photos' id='sur-photos'></div>" +
+          "<input type='file' accept='image/*' multiple id='sur-add'>" +
+          "<p class='hint'>Bisa pilih beberapa. Foto diunggah online otomatis pas Save.</p>");
+      $$("[data-sbind]", p).forEach(function (el) {
+        el.addEventListener("input", function () { content.surprise[el.dataset.sbind] = el.value; });
+      });
+      renderSurPhotos();
+      $("#sur-add").addEventListener("change", function (e) {
+        var files = Array.prototype.slice.call(e.target.files || []);
+        var chain = Promise.resolve();
+        files.forEach(function (f) { chain = chain.then(function () { return downscaleImage(f).then(function (d) { content.surprise.photos.push(d); }); }); });
+        chain.then(function () { renderSurPhotos(); checkSize(); }).catch(function () { toast("Sebagian foto gagal dimuat.", true); });
+        e.target.value = "";
+      });
+    }
+    function renderSurPhotos() {
+      var box = $("#sur-photos"); if (!box) return;
+      var arr = content.surprise.photos || [];
+      box.innerHTML = "";
+      arr.forEach(function (src, i) {
+        var d = document.createElement("div"); d.className = "sur-thumb";
+        d.innerHTML = "<img src='" + esc(src) + "' alt=''>" +
+          "<div class='sur-thumb__b'>" +
+            "<button class='iconbtn' data-i='" + i + "' data-a='up' aria-label='Geser kiri'>←</button>" +
+            "<button class='iconbtn' data-i='" + i + "' data-a='down' aria-label='Geser kanan'>→</button>" +
+            "<button class='iconbtn danger' data-i='" + i + "' data-a='del' aria-label='Hapus'>✕</button>" +
+          "</div>";
+        box.appendChild(d);
+      });
+      $$("[data-a]", box).forEach(function (b) {
+        b.addEventListener("click", function () {
+          var i = +b.dataset.i, a = b.dataset.a, ar = content.surprise.photos, t;
+          if (a === "del") ar.splice(i, 1);
+          else if (a === "up" && i > 0) { t = ar[i - 1]; ar[i - 1] = ar[i]; ar[i] = t; }
+          else if (a === "down" && i < ar.length - 1) { t = ar[i + 1]; ar[i + 1] = ar[i]; ar[i] = t; }
+          renderSurPhotos();
+        });
+      });
+    }
+
     // ---- Hidden ----
     function renderHidden() {
       var p = $("#p-hidden");
@@ -1420,6 +1562,9 @@
     function eachMediaField(fn) {
       (content.tracks || []).forEach(function (t) { fn(t, "photo"); fn(t, "commentary"); });
       if (content.hidden_track) { fn(content.hidden_track, "photo"); fn(content.hidden_track, "commentary"); }
+      if (content.surprise && content.surprise.photos) {
+        content.surprise.photos.forEach(function (_, i) { fn(content.surprise.photos, i); }); // array element by index
+      }
       fn(content, "song_url");
     }
     function hasInlineMedia() {
@@ -1629,6 +1774,7 @@
       setupCredits();
       setupKeyboard();
       wireGalleryParallax();
+      setupSurprise();
       layoutStory();
       setSpin(false); // stopped until the song plays
 

@@ -177,6 +177,29 @@
     </div>
   </div>
 
+  <!-- ============================ SURPRISE (girlfriend day) ========= -->
+  <button class="surprise-hint" id="surprise-hint" type="button" aria-haspopup="dialog">
+    <span class="surprise-hint__bud" aria-hidden="true">
+      <svg viewBox="0 0 24 30"><path class="b-stem" d="M11 30 Q10 22 12 15" fill="none"/><path class="b-spathe" d="M3 17 Q11 13 20 17 Q13 21 3 17Z"/><path class="b-p1" d="M9 16 L8 5 L13 16Z"/><path class="b-p2" d="M12 16 L16 6 L15 16Z"/><path class="b-blue" d="M10 17 L13 11 L16 17Z"/></svg>
+    </span>
+    <span class="surprise-hint__text" id="surprise-hint-text">Buat kamu 🌸</span>
+    <span class="surprise-hint__pulse" aria-hidden="true"></span>
+  </button>
+
+  <div class="surprise" id="surprise" role="dialog" aria-modal="true" aria-label="Kejutan untukmu" hidden>
+    <div class="surprise__backdrop" id="surprise-backdrop"></div>
+    <canvas class="surprise__petals" id="surprise-petals" aria-hidden="true"></canvas>
+    <div class="surprise__card">
+      <button class="surprise__close" id="surprise-close" type="button" aria-label="Tutup kejutan">✕</button>
+      <div class="surprise__blooms" id="surprise-blooms" aria-hidden="true"></div>
+      <p class="surprise__tag mono" id="surprise-subtitle"></p>
+      <h2 class="surprise__title" id="surprise-title"></h2>
+      <div class="surprise__photos" id="surprise-photos"></div>
+      <div class="surprise__msg" id="surprise-msg"></div>
+      <p class="surprise__sign" id="surprise-sign"></p>
+    </div>
+  </div>
+
   <!-- ============================ EDITOR (mixing desk) ============== -->
   <div class="edit" id="edit" role="dialog" aria-modal="true" aria-label="Mixing desk"></div>
 

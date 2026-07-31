@@ -157,5 +157,19 @@ window.SIDE_A_DEFAULTS = {
   ],
 
   closing: "Dari yang mencintaimu.",
+
+  // National Girlfriend Day surprise — a hint on the page opens a blooming popup
+  surprise: {
+    hint: "Psst… ada kejutan kecil buat kamu. Klik aku ya 🤍",
+    title: "Selamat Hari Pacar Nasional",
+    subtitle: "Buat kamu — pacar, partner, rumah.",
+    message:
+      "Sayang,\n\n" +
+      "Katanya hari ini Hari Pacar Nasional. Aku sebenernya nggak butuh tanggal khusus buat inget kamu — tiap hari juga kamu yang pertama aku pikirin pas bangun, dan yang terakhir sebelum tidur. Tapi boleh dong aku pakai alasan ini buat bilang sekali lagi: makasih udah jadi kamu.\n\n" +
+      "Walau kita kepisah dua negara dan satu layar, kamu selalu kerasa deket. Makasih udah sabar sama jarak, udah nungguin, udah tetep milih aku tiap malam.\n\n" +
+      "Selamat Hari Pacar, cintaku. Aku sayang kamu — kemarin, hari ini, dan semua hari yang belum kita jalanin bareng.",
+    sign: "— dari yang selalu nekan tombol rekam buat kamu",
+    photos: []
+  },
   footer: "Kamu dan Aku · YS-004 · Ditekan dengan tangan, untuk satu pendengar."
 };
