@@ -921,14 +921,18 @@
   }
 
   // --------------------------------------------------------------- surprise (girlfriend day)
+  // A recognizable Strelitzia (bird-of-paradise): horizontal green spathe "beak",
+  // a fan of pointed orange sepals rising like a crest, and a blue "tongue".
   function strelitziaSVG() {
-    return "<svg class='strelitzia' viewBox='0 0 120 130' aria-hidden='true'>" +
-      "<path class='stem' d='M40 130 Q38 108 50 92'/>" +
-      "<path class='spathe' d='M14 92 Q42 80 92 90 Q74 100 44 100 Q24 100 14 92 Z'/>" +
-      "<path class='sepal-a' d='M52 90 L44 30 L60 88 Z'/>" +
-      "<path class='sepal-b' d='M60 90 L66 20 L74 88 Z'/>" +
-      "<path class='sepal-a' d='M70 90 L88 34 L82 90 Z'/>" +
-      "<path class='blue' d='M56 92 L70 58 L80 92 Z'/>" +
+    return "<svg class='strelitzia' viewBox='0 0 120 120' aria-hidden='true'>" +
+      "<path class='stem' d='M31 120 Q23 96 29 82 Q33 74 45 78'/>" +
+      "<path class='spathe' d='M13 84 Q47 69 108 79 Q58 94 31 92 Q19 91 13 84 Z'/>" +
+      "<path class='sepal-a' d='M52 81 Q45 44 42 12 Q56 41 60 80 Z'/>" +
+      "<path class='sepal-b' d='M59 81 Q60 41 62 6 Q70 41 67 80 Z'/>" +
+      "<path class='sepal-a' d='M64 81 Q75 45 87 20 Q77 49 71 81 Z'/>" +
+      "<path class='sepal-b' d='M68 82 Q84 54 100 39 Q86 58 75 83 Z'/>" +
+      "<path class='calyx' d='M49 80 Q60 73 71 80 Q60 87 49 80 Z'/>" +
+      "<path class='blue' d='M55 84 Q82 82 110 73 Q84 92 59 90 Z'/>" +
       "</svg>";
   }
   function surprisePetals(canvas) {
@@ -961,8 +965,10 @@
     var blooms = $("#surprise-blooms");
     if (blooms) blooms.innerHTML =
       "<div class='bloom b-md'>" + strelitziaSVG() + "</div>" +
-      "<div class='bloom b-sm'>" + strelitziaSVG() + "</div>" +
-      "<div class='bloom b-lg'>" + strelitziaSVG() + "</div>";
+      "<div class='bloom b-lg'>" + strelitziaSVG() + "</div>" +
+      "<div class='bloom b-sm'>" + strelitziaSVG() + "</div>";
+    var bud = hint.querySelector(".surprise-hint__bud");
+    if (bud) bud.innerHTML = strelitziaSVG(); // same flower drives the hint
     var lastFocus = null, petalStop = null;
     function render() {
       var s = content.surprise || {};

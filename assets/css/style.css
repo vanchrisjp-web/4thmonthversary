@@ -946,36 +946,35 @@ body.editing { overflow: hidden; }
 /* =============================== SURPRISE (girlfriend day) ============== */
 :root { --strel-o: #F5822B; --strel-o2: #FF9E4A; --strel-g: #2C7A54; }
 
-/* floating hint — pulses gently to invite a tap */
+/* floating hint — a Strelitzia that sways + glows to invite a tap */
 .surprise-hint {
-  position: fixed; left: var(--edge); bottom: calc(64px + env(safe-area-inset-bottom) + 1rem);
-  z-index: 8500; display: inline-flex; align-items: center; gap: 0.55rem;
-  padding: 0.5rem 0.9rem 0.5rem 0.55rem; border: 1px solid var(--line-strong);
-  background: color-mix(in srgb, var(--ink) 82%, transparent); backdrop-filter: blur(6px);
+  position: fixed; left: var(--edge); bottom: calc(64px + env(safe-area-inset-bottom) + 1.1rem);
+  z-index: 8500; display: inline-flex; align-items: center; gap: 0.7rem;
+  padding: 0.55rem 1.1rem 0.55rem 0.65rem; border: 1px solid var(--line-strong);
+  background: color-mix(in srgb, var(--ink) 85%, transparent); backdrop-filter: blur(7px);
   color: var(--paper); cursor: pointer; border-radius: 999px;
-  box-shadow: 0 12px 30px -12px rgba(0,0,0,0.7), 0 0 0 0 color-mix(in srgb, var(--riso-pink) 55%, transparent);
-  animation: hint-breathe 3.4s var(--ease) infinite;
+  box-shadow: 0 14px 34px -12px rgba(0,0,0,0.75), 0 0 0 0 color-mix(in srgb, var(--riso-pink) 55%, transparent);
+  animation: hint-breathe 3.2s var(--ease) infinite;
   transition: transform var(--dur) var(--ease-spring), border-color var(--dur) var(--ease);
 }
-.surprise-hint:hover { transform: translateY(-3px) scale(1.03); border-color: var(--riso-pink); }
-.surprise-hint__bud { width: 26px; height: 30px; display: grid; place-items: center; flex: none; }
-.surprise-hint__bud svg { width: 100%; height: 100%; overflow: visible; }
-.surprise-hint__bud .b-spathe { fill: var(--strel-g); }
-.surprise-hint__bud .b-p1 { fill: var(--strel-o); } .surprise-hint__bud .b-p2 { fill: var(--strel-o2); }
-.surprise-hint__bud .b-blue { fill: var(--riso-blue); }
-.surprise-hint__bud .b-stem { stroke: var(--strel-g); stroke-width: 1.6; }
-.surprise-hint__bud svg .b-p1, .surprise-hint__bud svg .b-p2, .surprise-hint__bud svg .b-blue {
-  transform-box: fill-box; transform-origin: 50% 100%; animation: bud-sway 3.4s var(--ease) infinite;
+.surprise-hint:hover { transform: translateY(-4px) scale(1.04); border-color: var(--riso-pink); }
+.surprise-hint:hover .strelitzia { transform: scale(1.08) rotate(-3deg); }
+.surprise-hint__bud { width: 54px; height: 54px; display: grid; place-items: center; flex: none; }
+.surprise-hint__bud .strelitzia { filter: drop-shadow(0 3px 5px rgba(0,0,0,0.45)); transition: transform var(--dur) var(--ease-spring); }
+.surprise-hint .strelitzia .sepal-a, .surprise-hint .strelitzia .sepal-b {
+  transform-box: fill-box; transform-origin: 50% 100%; animation: bud-sway 3.6s var(--ease) infinite;
 }
-.surprise-hint__bud svg .b-p2 { animation-delay: 0.2s; } .surprise-hint__bud svg .b-blue { animation-delay: 0.4s; }
+.surprise-hint .strelitzia .sepal-b { animation-delay: 0.35s; }
+.surprise-hint .strelitzia .blue { transform-box: fill-box; transform-origin: 6% 50%; animation: bud-nod 3.6s var(--ease) infinite; }
 .surprise-hint__text { font-family: var(--font-mono); font-size: var(--fs-mono); letter-spacing: 0.06em; white-space: nowrap; }
 .surprise-hint__pulse {
   position: absolute; inset: -1px; border-radius: 999px; border: 1px solid var(--riso-pink);
-  opacity: 0; animation: hint-ring 3.4s var(--ease) infinite; pointer-events: none;
+  opacity: 0; animation: hint-ring 3.2s var(--ease) infinite; pointer-events: none;
 }
-@keyframes hint-breathe { 0%,100% { box-shadow: 0 12px 30px -12px rgba(0,0,0,0.7), 0 0 0 0 color-mix(in srgb,var(--riso-pink) 55%,transparent); } 50% { box-shadow: 0 12px 34px -12px rgba(0,0,0,0.7), 0 0 22px 2px color-mix(in srgb,var(--riso-pink) 40%,transparent); } }
-@keyframes hint-ring { 0% { opacity: 0.5; transform: scale(1); } 70%,100% { opacity: 0; transform: scale(1.35); } }
-@keyframes bud-sway { 0%,100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+@keyframes hint-breathe { 0%,100% { box-shadow: 0 14px 34px -12px rgba(0,0,0,0.75), 0 0 0 0 color-mix(in srgb,var(--riso-pink) 55%,transparent); } 50% { box-shadow: 0 14px 40px -12px rgba(0,0,0,0.75), 0 0 26px 3px color-mix(in srgb,var(--riso-pink) 45%,transparent); } }
+@keyframes hint-ring { 0% { opacity: 0.55; transform: scale(1); } 70%,100% { opacity: 0; transform: scale(1.42); } }
+@keyframes bud-sway { 0%,100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+@keyframes bud-nod { 0%,100% { transform: rotate(-3deg); } 50% { transform: rotate(4deg); } }
 
 /* modal */
 .surprise { position: fixed; inset: 0; z-index: 9500; display: grid; place-items: center; padding: var(--edge); }
@@ -1000,27 +999,31 @@ body.editing { overflow: hidden; }
 }
 .surprise__close:hover { background: var(--riso-pink); color: var(--paper); transform: rotate(90deg); }
 
-/* strelitzia bouquet */
-.surprise__blooms { position: absolute; top: -46px; left: 0; right: 0; height: 96px; pointer-events: none; z-index: 3; }
-.bloom { position: absolute; bottom: 0; width: 92px; height: 112px; }
-.bloom.b-lg { left: 50%; transform: translateX(-50%); width: 108px; height: 130px; z-index: 3; }
-.bloom.b-md { left: calc(50% - 74px); transform: rotate(-16deg); z-index: 2; }
-.bloom.b-sm { left: calc(50% + 30px); transform: rotate(15deg); width: 78px; height: 96px; z-index: 2; }
-.strelitzia { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 6px 10px rgba(0,0,0,0.28)); }
-.strelitzia .stem { stroke: var(--strel-g); stroke-width: 3; fill: none; stroke-linecap: round; }
+/* strelitzia bouquet — a cluster standing at the top of the card */
+.surprise__blooms { display: flex; justify-content: center; align-items: flex-end; gap: 0.1rem; height: clamp(108px, 27vw, 142px); margin: 0 auto 0.2rem; pointer-events: none; }
+.bloom { position: relative; width: clamp(76px, 20vw, 102px); height: 100%; }
+.bloom.b-lg { width: clamp(92px, 25vw, 124px); z-index: 3; }
+.bloom.b-md { transform: rotate(-15deg) translateY(10px); z-index: 2; }
+.bloom.b-sm { transform: rotate(14deg) translateY(10px); z-index: 2; }
+.strelitzia { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 7px 11px rgba(0,0,0,0.3)); }
+.strelitzia .stem { stroke: var(--strel-g); stroke-width: 3.2; fill: none; stroke-linecap: round; }
 .strelitzia .spathe { fill: var(--strel-g); }
+.strelitzia .calyx { fill: #1e5a3c; }
 .strelitzia .sepal-a { fill: var(--strel-o); } .strelitzia .sepal-b { fill: var(--strel-o2); }
 .strelitzia .blue { fill: var(--riso-blue); }
-.strelitzia .spathe, .strelitzia .sepal-a, .strelitzia .sepal-b, .strelitzia .blue {
+.strelitzia .spathe, .strelitzia .sepal-a, .strelitzia .sepal-b, .strelitzia .blue, .strelitzia .calyx {
+  stroke: rgba(18,16,14,0.12); stroke-width: 0.6; stroke-linejoin: round;
+}
+/* bloom-in only inside the modal; the hint flower stays fully open */
+.surprise .strelitzia .spathe, .surprise .strelitzia .calyx, .surprise .strelitzia .sepal-a, .surprise .strelitzia .sepal-b, .surprise .strelitzia .blue {
   transform-box: fill-box; transform-origin: 50% 100%; transform: scaleY(0.05); opacity: 0;
 }
 .surprise.open .strelitzia .spathe { animation: stz-bloom 520ms var(--ease-spring) forwards; }
-.surprise.open .strelitzia .sepal-a { animation: stz-bloom 640ms var(--ease-spring) 160ms forwards; }
-.surprise.open .strelitzia .sepal-b { animation: stz-bloom 640ms var(--ease-spring) 260ms forwards; }
-.surprise.open .strelitzia .blue { animation: stz-bloom 620ms var(--ease-spring) 360ms forwards; }
-.surprise.open .bloom.b-md .strelitzia * { animation-delay: 90ms; }
-.surprise.open .bloom.b-sm .strelitzia * { animation-delay: 180ms; }
-@keyframes stz-bloom { 0% { transform: scaleY(0.05); opacity: 0; } 60% { opacity: 1; } 100% { transform: scaleY(1); opacity: 1; } }
+.surprise.open .strelitzia .calyx { animation: stz-bloom 420ms var(--ease-spring) 130ms forwards; }
+.surprise.open .strelitzia .sepal-a { animation: stz-bloom 660ms var(--ease-spring) 210ms forwards; }
+.surprise.open .strelitzia .sepal-b { animation: stz-bloom 700ms var(--ease-spring) 330ms forwards; }
+.surprise.open .strelitzia .blue { animation: stz-bloom 620ms var(--ease-spring) 450ms forwards; }
+@keyframes stz-bloom { 0% { transform: scaleY(0.05); opacity: 0; } 55% { opacity: 1; } 100% { transform: scaleY(1); opacity: 1; } }
 
 .surprise__tag { color: var(--riso-pink); margin: 0.6rem 0 0.3rem; letter-spacing: 0.16em; }
 .surprise__title { font-family: var(--font-disp); font-weight: 800; text-transform: uppercase; font-size: clamp(1.5rem, 5vw, 2.1rem); line-height: 1.02; letter-spacing: -0.01em; color: var(--ink); }
