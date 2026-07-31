@@ -969,21 +969,44 @@
       "<div class='bloom b-sm'>" + strelitziaSVG() + "</div>";
     var bud = hint.querySelector(".surprise-hint__bud");
     if (bud) bud.innerHTML = strelitziaSVG(); // same flower drives the hint
-    var lastFocus = null, petalStop = null;
+    var lastFocus = null, petalStop = null, io = null, card = $(".surprise__card"), cue = $("#surprise-cue");
+    function revealAll() { $$(".reveal-s", card).forEach(function (el) { el.classList.add("in"); }); }
+    function wireReveals() {
+      if (io) { io.disconnect(); io = null; }
+      $$(".reveal-s", card).forEach(function (el) { el.classList.remove("in"); });
+      if (!("IntersectionObserver" in window) || prefersReduced()) { revealAll(); updateCue(); return; }
+      io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); } });
+      }, { root: card, threshold: 0.14 });
+      var i = 0;
+      $$(".reveal-s", card).forEach(function (el) { el.style.transitionDelay = ((i++ % 5) * 55) + "ms"; io.observe(el); });
+    }
+    function updateCue() {
+      if (!cue) return;
+      var more = card.scrollHeight - card.clientHeight - card.scrollTop > 24;
+      cue.classList.toggle("gone", !more || prefersReduced());
+    }
     function render() {
       var s = content.surprise || {};
       hint.style.display = (s.message || s.title) ? "" : "none";
       var ht = $("#surprise-hint-text"); if (ht) ht.textContent = s.hint || "Buat kamu 🌸";
       $("#surprise-subtitle").textContent = s.subtitle || "";
       $("#surprise-title").textContent = s.title || "";
-      $("#surprise-sign").textContent = s.sign || "";
-      $("#surprise-msg").textContent = s.message || "";
+      var sign = $("#surprise-sign"); sign.textContent = s.sign || ""; sign.classList.add("reveal-s");
+      var msg = $("#surprise-msg"); msg.innerHTML = "";
+      String(s.message || "").split(/\n\n+/).forEach(function (para) {
+        if (!para.trim()) return;
+        var pEl = document.createElement("p");
+        pEl.className = "surprise__p reveal-s";
+        pEl.textContent = para.trim();
+        msg.appendChild(pEl);
+      });
       var ph = $("#surprise-photos"); ph.innerHTML = "";
       (s.photos || []).forEach(function (src, i) {
         if (!src) return;
         var fig = document.createElement("figure");
+        fig.className = "reveal-s";
         fig.style.setProperty("--r", ((i % 2 ? 1 : -1) * (2 + (i % 3))) + "deg");
-        fig.style.animationDelay = (140 + i * 90) + "ms";
         var img = document.createElement("img"); img.src = src; img.alt = "Foto kita"; img.loading = "lazy";
         fig.appendChild(img); ph.appendChild(fig);
       });
@@ -993,17 +1016,23 @@
       lastFocus = document.activeElement;
       modal.hidden = false; void modal.offsetWidth; modal.classList.add("open");
       document.body.style.overflow = "hidden";
+      if (card) card.scrollTop = 0;
       var cl = $("#surprise-close"); if (cl) cl.focus();
       if (!prefersReduced()) petalStop = surprisePetals($("#surprise-petals"));
+      wireReveals();
+      setTimeout(updateCue, 60);
       // opening is a user gesture -> the song unmutes on its own (window click listener); we never pause it
     }
     function close() {
       modal.classList.remove("open");
       document.body.style.overflow = "";
       if (petalStop) { petalStop(); petalStop = null; }
+      if (io) { io.disconnect(); io = null; }
       setTimeout(function () { modal.hidden = true; }, 380);
       if (lastFocus && lastFocus.focus) try { lastFocus.focus(); } catch (e) {}
     }
+    if (card) card.addEventListener("scroll", updateCue, { passive: true });
+    if (cue) cue.addEventListener("click", function () { if (card) card.scrollBy({ top: card.clientHeight * 0.7, behavior: "smooth" }); });
     hint.addEventListener("click", open);
     $("#surprise-close").addEventListener("click", close);
     $("#surprise-backdrop").addEventListener("click", close);
