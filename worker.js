@@ -162,10 +162,12 @@ async function handleAlbum(request, env, url) {
 
   const m = url.pathname.match(/^\/api\/album\/(.+)$/);
   if (m && request.method === "GET") {
-    const buf = await env.CONTENT.get("album:" + m[1], "arrayBuffer");
+    const got = await env.CONTENT.getWithMetadata("album:" + m[1], "arrayBuffer");
+    const buf = got && got.value;
     if (!buf) return new Response("Not found", { status: 404, headers: CORS });
     const h = new Headers(CORS);
-    h.set("Content-Type", "image/png");
+    // serve what was actually stored -- shared strips arrive as JPEG
+    h.set("Content-Type", (got.metadata && got.metadata.ct) || "image/png");
     h.set("Cache-Control", "public, max-age=31536000, immutable");
     return new Response(buf, { headers: h });
   }
@@ -177,7 +179,9 @@ async function handleAlbum(request, env, url) {
     const buf = await request.arrayBuffer();
     if (buf.byteLength > 5 * 1024 * 1024) return jsonRes({ error: "too_large" }, 413);
     const name = Date.now() + "-" + Math.random().toString(36).slice(2, 8);
-    await env.CONTENT.put("album:" + name, buf);
+    const ct = request.headers.get("Content-Type") || "";
+    const mime = /^image\/(png|jpeg|webp)$/.test(ct) ? ct : "image/png";
+    await env.CONTENT.put("album:" + name, buf, { metadata: { ct: mime } });
     return jsonRes({ ok: true, name: name, url: "/api/album/" + name });
   }
   if (url.pathname === "/api/album" && request.method === "GET") {

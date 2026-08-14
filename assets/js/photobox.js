@@ -28,6 +28,12 @@
   var pc = null, localStream = null, role = null, myCode = null;
   var connected = false, shooting = false, selectedLayout = "side", lastCanvas = null;
   var selectedFilter = "asli";
+  /* The composed strip, as a blob. The shooter also keeps lastCanvas (the PNG
+     original); the other one only ever has this. Either is enough to look at
+     and to download. */
+  var lastBlob = null, lastMime = "image/png", rxUrl = null;
+  var CHUNK = 16 * 1024;          // SCTP-safe message size
+  var rx = null;                   // an incoming strip, mid-flight
 
   /* Looks. Each is a canvas/CSS filter string, so the SAME value drives the
      live preview and the baked frame -- what you pose for is what you keep.
@@ -395,6 +401,18 @@
   // data channel: peer messages sync the countdown so both pose at the same time
   function setupDC(ch) {
     ch.onmessage = function (e) {
+      // binary frames are strip chunks, not messages
+      if (typeof e.data !== "string") {
+        if (rx) {
+          rx.parts.push(e.data);
+          rx.got += e.data.byteLength || 0;
+          if (rx.size) {
+            setStatus("#session-status", "Menerima hasil foto\u2026 " +
+              Math.min(100, Math.round((rx.got / rx.size) * 100)) + "%");
+          }
+        }
+        return;
+      }
       var m; try { m = JSON.parse(e.data); } catch (er) { return; }
       if (m && m.t === "cd") guestCountdown(m.n || 3); // partner started a shot -- count down here too
       // keep both booths on the same look and layout, so the guest's preview
@@ -403,12 +421,63 @@
         selectedFilter = m.v; applyLookToPreview(); syncChips();
       }
       if (m && m.t === "layout" && m.v) { selectedLayout = m.v; syncChips(); }
+      if (m && m.t === "shot") {
+        rx = { size: m.size || 0, mime: m.mime || "image/jpeg", parts: [], got: 0 };
+        setStatus("#session-status", "Menerima hasil foto\u2026");
+      }
+      if (m && m.t === "shotdone" && rx) {
+        var blob = new Blob(rx.parts, { type: rx.mime });
+        lastBlob = blob; lastMime = rx.mime; lastCanvas = null;
+        if (rxUrl) URL.revokeObjectURL(rxUrl);
+        rxUrl = URL.createObjectURL(blob);
+        showResult(rxUrl, true);
+        setStatus("#session-status", "Hasil foto dari pasanganmu \u2713");
+        rx = null;
+      }
     };
+    ch.binaryType = "arraybuffer";
     // whoever opens the channel announces what they already have chosen, so a
     // look picked before the other one arrived is not silently lost
     ch.onopen = function () { sendDC({ t: "look", v: selectedFilter }); sendDC({ t: "layout", v: selectedLayout }); };
   }
   function sendDC(obj) { try { if (dc && dc.readyState === "open") dc.send(JSON.stringify(obj)); } catch (e) {} }
+
+  /* Taking the photo together and then only ONE of you seeing it is the wrong
+     ending. The shooter sends the finished strip straight down the same data
+     channel the countdown already uses, so it lands on both screens.
+     JPEG rather than the PNG original: a quarter of the bytes over a link
+     that may be crossing an ocean, and indistinguishable at this size. */
+  function shareShot(canvas) {
+    if (!dc || dc.readyState !== "open" || !canvas.toBlob) return;
+    canvas.toBlob(function (blob) {
+      if (!blob) return;
+      blob.arrayBuffer().then(function (buf) {
+        sendDC({ t: "shot", size: buf.byteLength, mime: blob.type || "image/jpeg" });
+        var off = 0;
+        (function pump() {
+          if (!dc || dc.readyState !== "open") return;
+          while (off < buf.byteLength) {
+            // let the channel drain rather than burying it and losing the tail
+            if (dc.bufferedAmount > 512 * 1024) { setTimeout(pump, 50); return; }
+            try { dc.send(buf.slice(off, off + CHUNK)); } catch (e) { return; }
+            off += CHUNK;
+          }
+          sendDC({ t: "shotdone" });
+        })();
+      });
+    }, "image/jpeg", 0.92);
+  }
+
+  function showResult(src, shared) {
+    $("#result-img").src = src;
+    $("#result").classList.add("on");
+    var tag = $("#result .tag");
+    if (tag) tag.textContent = shared ? "Hasil \u00b7 dari pasanganmu" : "Hasil";
+    var save = $("#save-album-btn");
+    // only the one who pressed the shutter files it, so the album gets one copy
+    if (save) { save.disabled = !!shared; save.title = shared ? "Yang motret yang nyimpen ke album" : ""; }
+    $("#result").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
   function syncChips() {
     document.querySelectorAll(".chip[data-look]").forEach(function (x) {
       x.setAttribute("aria-pressed", x.dataset.look === selectedFilter ? "true" : "false");
@@ -443,9 +512,9 @@
       })(0);
     }).then(function () {
       lastCanvas = compose(selectedLayout, pairs);
-      $("#result-img").src = lastCanvas.toDataURL("image/png");
-      $("#result").classList.add("on");
-      $("#result").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      lastBlob = null; lastMime = "image/png";
+      showResult(lastCanvas.toDataURL("image/png"), false);
+      shareShot(lastCanvas);        // and onto the other screen
     }).catch(function () {
       setStatus("#session-status", "Gagal mengambil foto. Coba lagi.", true);
     }).then(function () {
@@ -611,10 +680,13 @@
     $("#shoot-btn").addEventListener("click", runSession);
     $("#retake-btn").addEventListener("click", function () { $("#result").classList.remove("on"); });
     $("#download-btn").addEventListener("click", function () {
-      if (!lastCanvas) return;
+      // the shooter has the PNG original; the other one has the shared copy
+      var href, name = "photobox-" + stamp();
+      if (lastCanvas) { href = lastCanvas.toDataURL("image/png"); name += ".png"; }
+      else if (lastBlob) { href = rxUrl; name += lastMime === "image/png" ? ".png" : ".jpg"; }
+      else return;
       var a = document.createElement("a");
-      a.download = "photobox-" + stamp() + ".png";
-      a.href = lastCanvas.toDataURL("image/png");
+      a.download = name; a.href = href;
       document.body.appendChild(a); a.click(); a.remove();
     });
     $("#save-album-btn").addEventListener("click", saveToAlbum);
