@@ -27,6 +27,36 @@
 
   var pc = null, localStream = null, role = null, myCode = null;
   var connected = false, shooting = false, selectedLayout = "side", lastCanvas = null;
+  var selectedFilter = "asli";
+
+  /* Looks. Each is a canvas/CSS filter string, so the SAME value drives the
+     live preview and the baked frame -- what you pose for is what you keep.
+     Canvas 2D `filter` is honoured by every current browser; where it is not,
+     the frame simply bakes unfiltered rather than failing. */
+  var LOOKS = {
+    asli:    { name: "Asli",    css: "none" },
+    hangat:  { name: "Hangat",  css: "sepia(0.18) saturate(1.28) contrast(1.05) brightness(1.05)" },
+    dingin:  { name: "Dingin",  css: "saturate(1.12) hue-rotate(-12deg) brightness(1.07) contrast(1.06)" },
+    mekar:   { name: "Mekar",   css: "saturate(1.18) brightness(1.13) contrast(0.94)" },
+    retro:   { name: "Retro",   css: "sepia(0.5) contrast(1.12) saturate(1.2) brightness(1.02)" },
+    malam:   { name: "Malam",   css: "grayscale(1) contrast(1.2) brightness(0.98)" },
+    salju:   { name: "Salju",   css: "brightness(1.16) saturate(0.82) contrast(1.06) hue-rotate(8deg)" }
+  };
+  function lookCSS() { var l = LOOKS[selectedFilter]; return (l && l.css) || "none"; }
+  function applyLookToPreview() {
+    var f = lookCSS();
+    // includes the lobby preview, so you can pick a look before connecting
+    ["#selfPreview", "#selfVideo", "#remoteVideo"].forEach(function (sel) {
+      var v = $(sel); if (v) v.style.filter = f === "none" ? "" : f;
+    });
+  }
+  /* How many shots a layout needs. Strips take several; the rest take one. */
+  function shotsFor(layout) {
+    if (layout === "strip") return 3;
+    if (layout === "strip4") return 4;
+    if (layout === "grid") return 2;   // 2 pairs = a 2x2 of four pictures
+    return 1;
+  }
   var dc = null, guestCounting = false; // data channel: sync the countdown to both sides
 
   // ------------------------------------------------------------ screens/status
@@ -222,7 +252,9 @@
   function showWaiting(code) {
     show("s-wait");
     $("#wait-code").textContent = code;
-    var link = location.origin + location.pathname + "#" + code;
+    // keep the query (notably ?press=) so the guest's strip is stamped with
+    // the same pressing the host walked in from
+    var link = location.origin + location.pathname + location.search + "#" + code;
     $("#share-link").value = link;
   }
   function enterSession() {
@@ -251,7 +283,11 @@
     var sw = src.width, sh = src.height; if (!sw || !sh) return;
     var s = Math.max(w / sw, h / sh), dw = sw * s, dh = sh * s;
     g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
-    g.drawImage(src, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh); g.restore();
+    // the chosen look is baked here, so the print matches the preview
+    try { g.filter = lookCSS(); } catch (e) {}
+    g.drawImage(src, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+    try { g.filter = "none"; } catch (e) {}
+    g.restore();
     g.strokeStyle = "rgba(18,16,14,0.85)"; g.lineWidth = 2; g.strokeRect(x + 1, y + 1, w - 2, h - 2);
   }
   function tsText() {
@@ -268,13 +304,22 @@
     g.fillStyle = "#FF4A7D"; g.fillText(M, x, y); x += mw;
     g.fillStyle = "#12100E"; g.fillText(R, x, y);
   }
+  /* The booth lives here on Side A, but later pressings link straight to it
+     (?press=005). Whichever record you walked in from is the one stamped on
+     the strip, so a photo taken from month five reads YS-005 -- not YS-004.
+     Anything unexpected falls back to this booth's own pressing. */
+  function pressMark() {
+    var q = "";
+    try { q = new URLSearchParams(location.search).get("press") || ""; } catch (e) {}
+    return /^[0-9]{1,3}$/.test(q) ? "YS-" + ("00" + q).slice(-3) : "YS-004";
+  }
   function footerBand(g, W, H, FT, ts) {
     var y = H - FT / 2;
     g.strokeStyle = "rgba(18,16,14,0.25)"; g.lineWidth = 1;
     g.beginPath(); g.moveTo(16, H - FT); g.lineTo(W - 16, H - FT); g.stroke();
     g.textBaseline = "middle";
     g.fillStyle = "#12100E"; g.font = "400 14px 'Space Mono', monospace"; g.textAlign = "left"; g.fillText(ts, 18, y);
-    g.fillStyle = "#9A958C"; g.font = "400 12px 'Space Mono', monospace"; g.textAlign = "right"; g.fillText("YS-004", W - 18, y);
+    g.fillStyle = "#9A958C"; g.font = "400 12px 'Space Mono', monospace"; g.textAlign = "right"; g.fillText(pressMark(), W - 18, y);
     heartLine(g, W / 2, y, "700 18px 'Space Mono', monospace");
   }
   // Cells are 4:3 to match the live preview (.feed is aspect-ratio 4/3, object-fit
@@ -303,6 +348,32 @@
       }
       footerBand(g, W, H, FT, ts); return c;
     }
+    if (layout === "strip4") {
+      var W4 = 620, HEAD4 = 66, gap4 = 12, rows4 = pairs.length;
+      var cw4 = (W4 - 2 * P - gap4) / 2, rowH4 = Math.round(cw4 * AR);
+      var H4 = HEAD4 + rows4 * rowH4 + (rows4 - 1) * gap4 + FT + P;
+      c = mk(W4, H4); g = c.getContext("2d");
+      heartLine(g, W4 / 2, HEAD4 / 2 + 4, "800 26px 'Archivo', sans-serif");
+      for (var j = 0; j < rows4; j++) {
+        var y4 = HEAD4 + j * (rowH4 + gap4);
+        drawCover(g, pairs[j].a, P, y4, cw4, rowH4);
+        drawCover(g, pairs[j].b, P + cw4 + gap4, y4, cw4, rowH4);
+      }
+      footerBand(g, W4, H4, FT, ts); return c;
+    }
+    if (layout === "grid") {
+      // two shots, four pictures, square-ish: a 2x2 contact sheet
+      var Wg = 900, gapg = 16;
+      var cwg = (Wg - 2 * P - gapg) / 2, chg = Math.round(cwg * AR);
+      var Hg = 2 * P + 2 * chg + gapg + FT;
+      c = mk(Wg, Hg); g = c.getContext("2d");
+      drawCover(g, pairs[0].a, P, P, cwg, chg);
+      drawCover(g, pairs[0].b, P + cwg + gapg, P, cwg, chg);
+      var y2 = P + chg + gapg;
+      drawCover(g, pairs[1].a, P, y2, cwg, chg);
+      drawCover(g, pairs[1].b, P + cwg + gapg, y2, cwg, chg);
+      footerBand(g, Wg, Hg, FT, ts); return c;
+    }
     // side (default): two 4:3 cells
     var Wd = 1120, cwd = (Wd - 3 * P) / 2, cHd = Math.round(cwd * AR);
     var Hd = 2 * P + cHd + FT;
@@ -325,10 +396,27 @@
   function setupDC(ch) {
     ch.onmessage = function (e) {
       var m; try { m = JSON.parse(e.data); } catch (er) { return; }
-      if (m && m.t === "cd") guestCountdown(m.n || 3); // partner started a shot — count down here too
+      if (m && m.t === "cd") guestCountdown(m.n || 3); // partner started a shot -- count down here too
+      // keep both booths on the same look and layout, so the guest's preview
+      // shows exactly what the host is about to print
+      if (m && m.t === "look" && LOOKS[m.v]) {
+        selectedFilter = m.v; applyLookToPreview(); syncChips();
+      }
+      if (m && m.t === "layout" && m.v) { selectedLayout = m.v; syncChips(); }
     };
+    // whoever opens the channel announces what they already have chosen, so a
+    // look picked before the other one arrived is not silently lost
+    ch.onopen = function () { sendDC({ t: "look", v: selectedFilter }); sendDC({ t: "layout", v: selectedLayout }); };
   }
   function sendDC(obj) { try { if (dc && dc.readyState === "open") dc.send(JSON.stringify(obj)); } catch (e) {} }
+  function syncChips() {
+    document.querySelectorAll(".chip[data-look]").forEach(function (x) {
+      x.setAttribute("aria-pressed", x.dataset.look === selectedFilter ? "true" : "false");
+    });
+    document.querySelectorAll(".chip[data-layout]").forEach(function (x) {
+      x.setAttribute("aria-pressed", x.dataset.layout === selectedLayout ? "true" : "false");
+    });
+  }
   function guestCountdown(from) {
     if (guestCounting || shooting) return; // don't stack with our own capture
     guestCounting = true;
@@ -340,7 +428,7 @@
     shooting = true;
     $("#shoot-btn").disabled = true;
     $("#result").classList.remove("on");
-    var n = selectedLayout === "strip" ? 3 : 1;
+    var n = shotsFor(selectedLayout);
     var pairs = [];
     (function ready() {
       return (document.fonts && document.fonts.ready) ? document.fonts.ready.catch(function () {}) : Promise.resolve();
@@ -495,9 +583,26 @@
       else { $("#share-link").select(); try { document.execCommand("copy"); done(); } catch (e) {} }
     });
 
+    // look chips
+    var lookRow = document.querySelector(".looks");
+    if (lookRow) {
+      lookRow.innerHTML = Object.keys(LOOKS).map(function (k) {
+        return '<button class="chip" data-look="' + k + '" aria-pressed="' +
+          (k === selectedFilter ? "true" : "false") + '">' + LOOKS[k].name + "</button>";
+      }).join("");
+      lookRow.querySelectorAll(".chip[data-look]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          selectedFilter = b.dataset.look;
+          applyLookToPreview();
+          syncChips();
+          sendDC({ t: "look", v: selectedFilter });
+        });
+      });
+    }
     document.querySelectorAll(".chip[data-layout]").forEach(function (b) {
       b.addEventListener("click", function () {
         selectedLayout = b.dataset.layout;
+        sendDC({ t: "layout", v: selectedLayout });
         document.querySelectorAll(".chip[data-layout]").forEach(function (x) {
           x.setAttribute("aria-pressed", x === b ? "true" : "false");
         });

@@ -76,8 +76,20 @@
       padding:.2em .6em; font-family:var(--mono); font-size:.62rem; letter-spacing:.16em; text-transform:uppercase; }
     .feed .off { position:absolute; inset:0; display:grid; place-items:center; color:var(--grey); font-family:var(--mono); font-size:.72rem; }
 
-    .controls { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }
+    /* two labelled rows -- the look, then the frame -- with the shutter last */
+    .controls { display:grid; grid-template-columns:auto minmax(0,1fr); gap:.5rem .7rem; align-items:center; }
+    .ctl-lab { font:600 10px/1 var(--mono,ui-monospace,monospace); letter-spacing:.18em; text-transform:uppercase; opacity:.6; }
     .layouts { display:flex; gap:.4rem; flex-wrap:wrap; }
+    .looks { display:flex; gap:.4rem; flex-wrap:wrap; }
+    .controls > .btn { grid-column:2; justify-self:start; margin-top:.2rem; }
+    @media (max-width:520px) {
+      .controls { grid-template-columns:1fr; gap:.3rem; }
+      .ctl-lab { margin-top:.4rem; }
+      .controls > .btn { grid-column:1; }
+    }
+    .looks .chip[aria-pressed="true"] { background:var(--riso-pink); color:var(--paper); border-color:var(--riso-pink); }
+    /* the preview carries the chosen look, so the pose matches the print */
+    .feed video { transition: filter .25s ease; }
     .chip { font-family:var(--mono); text-transform:uppercase; letter-spacing:.08em; font-size:.72rem;
       border:1px solid var(--line2); padding:.5em .8em; min-height:40px; display:inline-flex; align-items:center; }
     .chip[aria-pressed="true"] { background:var(--paper); color:var(--ink); border-color:var(--paper); }
@@ -170,10 +182,15 @@
           <div class="off" id="remote-off">menyambung…</div></div>
       </div>
       <div class="controls">
+        <span class="ctl-lab">Gaya</span>
+        <div class="looks" role="group" aria-label="Filter foto"></div>
+        <span class="ctl-lab">Bingkai</span>
         <div class="layouts" role="group" aria-label="Tata letak">
           <button class="chip" data-layout="side" aria-pressed="true">Berdampingan</button>
           <button class="chip" data-layout="stack" aria-pressed="false">Tumpuk</button>
           <button class="chip" data-layout="strip" aria-pressed="false">Strip ×3</button>
+          <button class="chip" data-layout="strip4" aria-pressed="false">Strip ×4</button>
+          <button class="chip" data-layout="grid" aria-pressed="false">Kotak 2×2</button>
         </div>
         <button class="btn solid" id="shoot-btn">Ambil foto</button>
       </div>
