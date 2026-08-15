@@ -12,17 +12,37 @@
   // ICE servers are fetched from the Worker (/api/photobox/turn), which mints
   // Cloudflare TURN credentials server-side. STUN-only until that resolves.
   var ICE = { iceServers: [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }] };
-  var iceRelay = false, relayCount = 0;
+  var relayCount = 0;
+  /* NEVER FORBID THE DIRECT PATH.
+     This used to set iceTransportPolicy:"relay" whenever real TURN credentials
+     came back -- relay is the path that survives the worst networks, so the
+     reasoning went, use it always. But "relay only" does not mean "prefer
+     relay", it means every other candidate is discarded before it is even
+     offered. One bad minute at the TURN server and ICE gathers ZERO candidates,
+     the offer goes out empty, and both booths sit on "Menyambung..." forever
+     with nothing to connect to -- measured: 0 candidates, connectionState never
+     leaves "new". The same test with the policy left alone gathers host and
+     srflx candidates and connects anyway.
+     TURN is still in the list below, so a genuinely hostile network still gets
+     its relay. It is now the last resort it was always meant to be, not the
+     only one. (This is what Side B's video call has always done.) */
   function loadIce() {
-    return fetch("/api/photobox/turn", { cache: "no-store" })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (j && j.iceServers && j.iceServers.length) {
-          ICE = { iceServers: j.iceServers };
-          iceRelay = (j.turn === "cloudflare"); // force relay-only when real TURN is available
-        }
-      })
-      .catch(function () {});
+    /* And a cap, because the whole join is chained behind this fetch: the guest
+       posts "Menyambung ke room X..." and only then waits on it. No timeout
+       here meant a slow credential endpoint hung the booth on that exact line
+       with no way forward. Six seconds, then open on STUN. */
+    return new Promise(function (resolve) {
+      var settled = false;
+      var done = function () { if (!settled) { settled = true; resolve(); } };
+      var t = setTimeout(done, 6000);
+      fetch("/api/photobox/turn", { cache: "no-store" })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j && j.iceServers && j.iceServers.length) ICE = { iceServers: j.iceServers };
+        })
+        .catch(function () {})
+        .then(function () { clearTimeout(t); done(); });
+    });
   }
 
   var pc = null, localStream = null, role = null, myCode = null;
@@ -90,9 +110,11 @@
   }
   function cleanup() {
     stopCandPolls();
+    clearTimeout(connTimer); clearTimeout(healT); healT = null;
     if (dc) { try { dc.close(); } catch (e) {} dc = null; }
     if (pc) { try { pc.close(); } catch (e) {} pc = null; }
     connected = false; remoteReady = false; candQueue = [];
+    role = null; // nothing left to heal once we are back in the lobby
   }
 
   // ------------------------------------------------------------ signaling
@@ -110,19 +132,30 @@
   function postRaw(room, slot, body) {
     return fetch(api(room, slot), { method: "POST", headers: { "Content-Type": "application/json" }, body: body }).catch(function () {});
   }
-  function poll(room, slot, timeoutMs) {
+  /* `ok` decides whether the description in the slot is the one we are waiting
+     for. Both slots are single-valued and reused on every reconnect, so "is
+     there one?" is the wrong question -- a rebuild that asks it re-applies the
+     dead description it was trying to replace, or worse, answers offer #2 with
+     the answer to offer #1 and rejects it as malformed. Every handshake carries
+     a token (see `tok` below) and both sides match on that. */
+  function poll(room, slot, timeoutMs, ok) {
     var t0 = Date.now();
     return (function loop() {
       return fetch(api(room, slot), { cache: "no-store" })
         .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { r: r, j: j }; }); })
         .then(function (o) {
           if (o.r.status === 503 || o.j.error === "kv_not_set") throw new Error("kv");
-          if (o.j && o.j.type && o.j.sdp) return o.j;
+          if (o.j && o.j.type && o.j.sdp && (!ok || ok(o.j))) return o.j;
           if (Date.now() - t0 > timeoutMs) throw new Error("timeout");
           return wait(1000).then(loop);
         });
     })();
   }
+  /* A handshake's name. The host mints one per offer; the guest echoes it back
+     on the answer. Extra keys on a session description are ignored by
+     setRemoteDescription, so this rides along for free. */
+  function tok() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  function withTok(desc, t) { return { type: desc.type, sdp: desc.sdp, tok: t }; }
 
   // ------------------------------------------------------------ webrtc
   function getMedia() {
@@ -139,7 +172,7 @@
 
   function newPC(candSlot) {
     relayCount = 0;
-    var p = new RTCPeerConnection({ iceServers: ICE.iceServers, iceTransportPolicy: iceRelay ? "relay" : "all" });
+    var p = new RTCPeerConnection({ iceServers: ICE.iceServers });
     localStream.getTracks().forEach(function (t) { p.addTrack(t, localStream); });
     // data channel to broadcast the countdown so BOTH sides pose together
     if (role === "host") { dc = p.createDataChannel("pb"); setupDC(dc); }
@@ -156,13 +189,18 @@
       }
     };
     p.onconnectionstatechange = function () {
+      if (p !== pc) return;                       // a torn-down connection has no say
       var st = p.connectionState;
-      setStatus("#session-status", "Status: " + st);
-      if (st === "connected") markConnected();
-      if (st === "failed") setStatus("#session-status",
-        "Gagal menyambung. Coba lagi — kalau tetap gagal, salah satu jaringan perlu relay lain.", true);
+      if (connected) setStatus("#session-status", "Status: " + st);
+      if (st === "connected") { healN = 0; clearTimeout(healT); healT = null; markConnected(); }
+      /* "disconnected" is usually a blip and comes back by itself; "failed" is
+         terminal and never does. Give the first a few seconds of grace, and
+         rebuild on the second rather than printing a sentence and stopping. */
+      if (st === "disconnected") healLater(6000);
+      if (st === "failed") healLater(400);
     };
     p.oniceconnectionstatechange = function () {
+      if (p !== pc) return;
       var st = p.iceConnectionState;
       if (st === "connected" || st === "completed") markConnected();
     };
@@ -171,22 +209,54 @@
   function markConnected() {
     if (connected) return;
     connected = true;
-    clearTimeout(connTimer);
+    clearTimeout(connTimer); clearTimeout(healT); healT = null;
     enterSession();
     setTimeout(stopCandPolls, 4000); // grab trailing candidates, then stop
+  }
+  // whichever panel this side is actually looking at
+  function statusEl() {
+    var s = $("#s-session");
+    if (s && s.classList.contains("on")) return "#session-status";
+    return role === "host" ? "#wait-status" : "#lobby-status";
   }
   function armConnectTimeout() {
     clearTimeout(connTimer);
     connTimer = setTimeout(function () {
       if (connected) return;
-      var where = role === "host" ? "#wait-status" : "#lobby-status";
-      if (iceRelay && relayCount === 0)
-        setStatus(where, "Relay TURN nggak kebentuk (0 kandidat) — jaringan/firewall mungkin blokir. Coba jaringan lain.", true);
-      else if (relayCount > 0)
-        setStatus(where, "Kandidat relay ada (" + relayCount + ") tapi belum nyambung. Coba refresh dua-duanya.", true);
+      if (relayCount > 0)
+        setStatus(statusEl(), "Kandidat relay ada (" + relayCount + ") tapi belum nyambung — masih nyoba…", true);
       else
-        setStatus(where, "Masih nyoba nyambung… tunggu sebentar ya.", true);
+        setStatus(statusEl(), "Belum nyambung. Masih nyoba — kalau lama, refresh dua-duanya ya.", true);
     }, 20000);
+  }
+
+  /* SELF-HEAL.
+     There was no recovery here at all: a connection that failed printed one
+     sentence and the booth sat there. Rebuild inside the SAME room -- a fresh
+     description into the same slot, which the other side notices because it
+     compares against the one it already applied. Capped, so a network that is
+     simply down cannot spin. */
+  var healN = 0, healT = null, appliedTok = "";
+  function healLater(ms) {
+    if (healT || !role) return;
+    healT = setTimeout(function () {
+      healT = null;
+      if (!pc || pc.connectionState === "connected") return;
+      rebuild();
+    }, ms);
+  }
+  function rebuild() {
+    if (healN >= 4) {
+      setStatus(statusEl(), "Sambungan nggak mau naik. Refresh dua-duanya ya.", true);
+      return;
+    }
+    healN++;
+    stopCandPolls();
+    if (dc) { try { dc.close(); } catch (e) {} dc = null; }
+    if (pc) { try { pc.close(); } catch (e) {} pc = null; }
+    connected = false; remoteReady = false; candQueue = []; candPollStop = false;
+    setStatus(statusEl(), "Sambungan putus — nyoba nyambung lagi (" + healN + ")…");
+    (role === "host" ? hostHandshake() : guestHandshake()).catch(function () { healLater(4000); });
   }
   function addRemoteCandidate(str) {
     var c; try { c = JSON.parse(str); } catch (e) { return; }
@@ -201,7 +271,11 @@
   function startCandPoll(code, slot) {
     var since = 0, t0 = Date.now();
     (function loop() {
-      if (candPollStop || Date.now() - t0 > 90000) return;
+      /* This used to give up after 90 seconds while the host waited five
+         minutes for an answer -- so a partner who took their time walking to
+         the other machine arrived to a host that had stopped listening for
+         their candidates. Match the wait; it stops on its own once connected. */
+      if (candPollStop || Date.now() - t0 > 300000) return;
       fetch(api(code, slot) + "?since=" + since, { cache: "no-store" })
         .then(function (r) { return r.json(); })
         .then(function (j) { if (j && j.items) { j.items.forEach(addRemoteCandidate); since = j.n; } })
@@ -217,42 +291,72 @@
     return s;
   }
 
-  function startHost() {
-    role = "host"; myCode = rid(); remoteReady = false; candQueue = []; candPollStop = false;
-    setStatus("#lobby-status", "Menyiapkan…");
-    loadIce().then(getMedia).then(function (stream) {
-      localStream = stream; showSelf();
+  // The camera is asked for once per visit, not once per attempt -- a reconnect
+  // must not put a permission prompt in front of someone mid-session.
+  function needMedia() {
+    if (localStream) return Promise.resolve(localStream);
+    return getMedia().then(function (s) { localStream = s; showSelf(); return s; });
+  }
+
+  /* One handshake per side, callable again. `first` is the walk-in: it is what
+     shows the waiting screen and keeps the guest's "is this room real?" check
+     short. A rebuild passes nothing and re-runs the same steps in place. */
+  function hostHandshake(first) {
+    remoteReady = false; candQueue = []; candPollStop = false;
+    var mine = tok();
+    return needMedia().then(function () {
       pc = newPC("ca"); // host publishes its candidates to "ca"
       return pc.createOffer().then(function (o) { return pc.setLocalDescription(o); })
-        .then(function () { return post(myCode, "offer", pc.localDescription); }) // send offer immediately
+        .then(function () { return post(myCode, "offer", withTok(pc.localDescription, mine)); }) // send offer immediately
         .then(function () {
-          showWaiting(myCode);
+          if (first) showWaiting(myCode);
           startCandPoll(myCode, "cb"); // pull guest candidates
-          return poll(myCode, "answer", 300000);
+          armConnectTimeout();
+          // only the answer to THIS offer -- an answer to the previous one
+          // describes a connection that no longer exists. A tokenless answer is
+          // a booth still running yesterday's script; take it rather than
+          // leaving that person staring at a screen that never moves.
+          return poll(myCode, "answer", 300000, function (a) { return !a.tok || a.tok === mine; });
         })
         .then(function (ans) {
-          setStatus("#wait-status", "Tersambung, menyiapkan sesi");
+          setStatus(statusEl(), "Tersambung, menyiapkan sesi");
           return pc.setRemoteDescription(ans).then(flushCandidates);
         })
         .then(armConnectTimeout);
-    }).catch(handleErr);
+    });
+  }
+
+  function guestHandshake(first) {
+    remoteReady = false; candQueue = []; candPollStop = false;
+    // any offer we have not already tried -- on a rebuild that means the new one
+    return poll(myCode, "offer", first ? 20000 : 120000, function (o) { return o.tok !== appliedTok; })
+      .then(function (offer) {
+        return needMedia().then(function () {
+          pc = newPC("cb"); // guest publishes its candidates to "cb"
+          appliedTok = offer.tok || "";
+          return pc.setRemoteDescription(offer).then(flushCandidates)
+            .then(function () { startCandPoll(myCode, "ca"); return pc.createAnswer(); }) // pull host candidates
+            .then(function (a) { return pc.setLocalDescription(a); })
+            .then(function () { return post(myCode, "answer", withTok(pc.localDescription, appliedTok)); })
+            .then(function () {
+              setStatus(statusEl(), "Tersambung, menyiapkan sesi…");
+              armConnectTimeout(); // the guest never armed this, so it waited in silence
+            });
+        });
+      });
+  }
+
+  function startHost() {
+    role = "host"; myCode = rid(); healN = 0; appliedTok = "";
+    setStatus("#lobby-status", "Menyiapkan…");
+    loadIce().then(function () { return hostHandshake(true); }).catch(handleErr);
   }
 
   function startJoin(code) {
     if (!code) { setStatus("#lobby-status", "Masukkan kodenya dulu.", true); return; }
-    role = "guest"; myCode = code; remoteReady = false; candQueue = []; candPollStop = false;
+    role = "guest"; myCode = code; healN = 0; appliedTok = "";
     setStatus("#lobby-status", "Menyambung ke room " + code + "…");
-    loadIce().then(function () { return poll(code, "offer", 20000); }).then(function (offer) {
-      return getMedia().then(function (stream) {
-        localStream = stream; showSelf();
-        pc = newPC("cb"); // guest publishes its candidates to "cb"
-        return pc.setRemoteDescription(offer).then(flushCandidates)
-          .then(function () { startCandPoll(code, "ca"); return pc.createAnswer(); }) // pull host candidates
-          .then(function (a) { return pc.setLocalDescription(a); })
-          .then(function () { return post(code, "answer", pc.localDescription); }) // send answer immediately
-          .then(function () { setStatus("#lobby-status", "Tersambung, menyiapkan sesi…"); });
-      });
-    }).catch(handleErr);
+    loadIce().then(function () { return guestHandshake(true); }).catch(handleErr);
   }
 
   function showWaiting(code) {
