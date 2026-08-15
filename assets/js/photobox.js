@@ -319,6 +319,40 @@
     try { q = new URLSearchParams(location.search).get("press") || ""; } catch (e) {}
     return /^[0-9]{1,3}$/.test(q) ? "YS-" + ("00" + q).slice(-3) : "YS-004";
   }
+  /* THE WAY BACK.
+     The booth lives on Side A, but by month five you mostly arrive from
+     somewhere else -- and the door out said "Album" and led to Side A's front
+     page, which is not the building you came from. A pressing that links here
+     carries ?from= (where to put you down) and ?fromname= (what to call it),
+     so the door is labelled with the room you actually left. Only same-scheme
+     http(s) links are honoured, so the parameter cannot become a way to point
+     this button anywhere unpleasant. */
+  function fromUrl() {
+    var q = "";
+    try { q = new URLSearchParams(location.search).get("from") || ""; } catch (e) {}
+    if (!q) return "";
+    try {
+      var u = new URL(q, location.href);
+      if (u.protocol !== "http:" && u.protocol !== "https:") return "";
+      return u.href;
+    } catch (e) { return ""; }
+  }
+  function fromName() {
+    var q = "";
+    try { q = new URLSearchParams(location.search).get("fromname") || ""; } catch (e) {}
+    q = String(q).replace(/[<>]/g, "").trim().slice(0, 28);
+    return q || "sisi sebelumnya";
+  }
+  /* Say which pressing this strip will be stamped with, before it is taken --
+     the number only appeared in six-point type in the footer of a photograph
+     that had already been shot. */
+  function paintPress() {
+    var tag = document.querySelector("header.top .tag");
+    if (tag) tag.textContent = "Kamu & Aku · sesi berdua · " + pressMark();
+    var back = document.getElementById("backlink");
+    var home = fromUrl();
+    if (back && home) { back.href = home; back.textContent = "← " + fromName(); }
+  }
   function footerBand(g, W, H, FT, ts) {
     var y = H - FT / 2;
     g.strokeStyle = "rgba(18,16,14,0.25)"; g.lineWidth = 1;
@@ -691,7 +725,21 @@
     });
     $("#save-album-btn").addEventListener("click", saveToAlbum);
     $("#open-album").addEventListener("click", showAlbum);
-    $("#album-back").addEventListener("click", function () { show(connected ? "s-session" : "s-lobby"); });
+    /* Mid-session, "back" means back to the booth you are standing in. With
+       nothing running, it means back to where you came from -- which by month
+       five is another pressing, not this one's front page. */
+    $("#album-back").addEventListener("click", function () {
+      if (connected) { show("s-session"); return; }
+      var home = fromUrl();
+      if (home) { location.href = home; return; }
+      show("s-lobby");
+    });
+    (function () {
+      var home = fromUrl();
+      var b = $("#album-back");
+      if (b && home) b.textContent = "← " + fromName();
+    })();
+    paintPress();
 
     // shared invite link: /photobox#CODE -> prefill the join field
     var h = (location.hash || "").replace(/^#/, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
