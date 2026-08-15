@@ -240,7 +240,36 @@
       t = "Kamera belum bisa dipakai. Sesinya tetap jalan — pencet “Nyalakan kamera” kalau sudah bebas.";
     camMsg = t;
     setStatus(statusEl(), t, true);
+    watchForCamera();
   }
+  /* A "kamera lagi dipakai" that is still up after you have closed the other
+     app is worse than no message at all: it says the booth is broken when the
+     booth is fine. While the note is showing, keep quietly asking, and take the
+     camera the moment it comes free -- straight into the live call, no
+     handshake, nothing to press. */
+  var camWatch = null;
+  function watchForCamera() {
+    if (camWatch) return;
+    camWatch = setInterval(function () {
+      if (haveCam() || !role) { clearInterval(camWatch); camWatch = null; return; }
+      getMedia().then(function (s) {
+        var t = s.getVideoTracks()[0];
+        if (!t) { s.getTracks().forEach(function (x) { x.stop(); }); return; }
+        clearInterval(camWatch); camWatch = null;
+        if (localStream) localStream.getTracks().forEach(function (x) { x.stop(); });
+        localStream = s; camMsg = "";
+        showSelf(); refreshCamUI(); applyLookToPreview();
+        if (camTrx && camTrx.sender) camTrx.sender.replaceTrack(t).catch(function () {});
+        setStatus(statusEl(), "Kamera nyala ✓");
+      }).catch(function () {});
+    }, 4000);
+  }
+  /* A reload used to leave the old page's camera handle open for a moment, and
+     the new page would then be told -- correctly, and uselessly -- that the
+     camera was busy. Hand it back on the way out. */
+  window.addEventListener("pagehide", function () {
+    if (localStream) localStream.getTracks().forEach(function (t) { t.stop(); });
+  });
   /* Pick the camera up mid-session, without a second handshake. The video lane
      is reserved as sendrecv at connect time (see newPC), so a track that turns
      up later just slides into the sender that is already there. */
@@ -343,7 +372,12 @@
     clearTimeout(connTimer); clearTimeout(healT); healT = null;
     enterSession();
     setTimeout(stopCandPolls, 4000); // grab trailing candidates, then stop
+    // keep the link measurement warm so the first shot is as aligned as the tenth
+    sampleLag();
+    clearInterval(lagTimer);
+    lagTimer = setInterval(sampleLag, 3000);
   }
+  var lagTimer = null;
   // whichever panel is actually on screen -- not whichever one the role implies
   function statusEl() {
     var s = $("#s-session"); if (s && s.classList.contains("on")) return "#session-status";
@@ -535,6 +569,46 @@
     return c;
   }
   function grabPair() { return { a: grabVideo($("#selfVideo"), true), b: grabVideo($("#remoteVideo"), false) }; }
+
+  /* HOW FAR BEHIND HER PICTURE IS.
+
+     Two separate lags, and the booth used to ignore both.
+
+     1. The countdown was sent and started in the same breath, so she began
+        counting one-way-latency later than the shooter. Bandung to Tokyo over
+        a relay is 80-200 ms; her "1" was still on screen when the shutter had
+        already gone.
+     2. Worse, and invisible: the frame in #remoteVideo right now is not this
+        moment. It left her camera, was encoded, crossed the ocean and sat in a
+        jitter buffer -- typically 150-400 ms. So the strip paired HIS face at
+        the shutter with HER face a third of a second earlier. That is the
+        "not same, pretty late" in the reports, and no amount of countdown
+        fixing would have touched it.
+
+     Both are measurable from getStats, so measure them and schedule around
+     them rather than hoping. */
+  var _rttMs = 0, _lagMs = 0;
+  function sampleLag() {
+    if (!pc || pc.connectionState !== "connected" || !pc.getStats) return;
+    pc.getStats().then(function (s) {
+      var jbDelay = 0, jbCount = 0, rtt = -1;
+      s.forEach(function (r) {
+        if (r.type === "inbound-rtp" && r.kind === "video") {
+          jbDelay = r.jitterBufferDelay || 0;
+          jbCount = r.jitterBufferEmittedCount || 0;
+        }
+        if (r.type === "candidate-pair" && r.nominated && typeof r.currentRoundTripTime === "number") {
+          rtt = r.currentRoundTripTime;
+        }
+      });
+      if (rtt >= 0) _rttMs = Math.round(rtt * 1000);
+      // seconds of buffering per emitted frame, which is exactly how stale the
+      // picture on screen is before the network is even counted
+      var buf = jbCount ? (jbDelay / jbCount) * 1000 : 0;
+      _lagMs = Math.max(0, Math.min(600, Math.round(buf + _rttMs / 2)));
+      window.__pb = { rttMs: _rttMs, lagMs: _lagMs };   // for QA, not for her
+    }).catch(function () {});
+  }
 
   function mk(w, h) {
     var c = document.createElement("canvas"); c.width = w; c.height = h;
@@ -799,9 +873,24 @@
     })().then(function () {
       return (function loop(i) {
         if (i >= n) return Promise.resolve();
-        sendDC({ t: "cd", n: 3 }); // tell the partner to count down + pose too
-        return doCountdown(3).then(function () {
-          pairs.push(grabPair());
+        sampleLag();
+        sendDC({ t: "cd", n: 3 });            // she starts the moment this lands
+        /* ...which is one-way-latency from now, so wait that long before
+           starting ours. Both countdowns then run against the same wall clock
+           and both of you hit "1" together. */
+        var lead = Math.min(300, Math.round(_rttMs / 2));
+        return wait(lead).then(function () { return doCountdown(3); }).then(function () {
+          /* THE SHUTTER, ALIGNED.
+             Take our own frame at the instant of GO. Her frame of that same
+             instant has not arrived yet -- it is still in flight and in the
+             jitter buffer -- so wait exactly that long and take hers then.
+             Both halves of the strip are then the same moment in the world,
+             instead of hers being a third of a second stale. */
+          var mine = grabVideo($("#selfVideo"), true);
+          return wait(_lagMs).then(function () {
+            pairs.push({ a: mine, b: grabVideo($("#remoteVideo"), false) });
+          });
+        }).then(function () {
           return (i < n - 1 ? wait(800) : Promise.resolve()).then(function () { return loop(i + 1); });
         });
       })(0);
