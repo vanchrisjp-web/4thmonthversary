@@ -113,7 +113,7 @@
     clearTimeout(connTimer); clearTimeout(healT); healT = null;
     if (dc) { try { dc.close(); } catch (e) {} dc = null; }
     if (pc) { try { pc.close(); } catch (e) {} pc = null; }
-    connected = false; remoteReady = false; candQueue = [];
+    connected = false; remoteReady = false; candQueue = []; camTrx = null;
     role = null; // nothing left to heal once we are back in the lobby
   }
 
@@ -158,28 +158,156 @@
   function withTok(desc, t) { return { type: desc.type, sdp: desc.sdp, tok: t }; }
 
   // ------------------------------------------------------------ webrtc
+  /* THE CAMERA IS OFTEN ALREADY SOMEONE ELSE'S.
+     Asking for 1280x720 asks Windows to open the device in a specific mode. If
+     Discord (or Zoom, or another tab, or a booth tab that was closed badly) is
+     already holding it, that fails outright -- and Discord keeps the handle
+     even with its video switched off in the UI, which is why turning it off
+     there changes nothing. Come down the ladder instead: the loosest request
+     can usually attach to whatever mode is already running. */
+  var CAM_TRIES = [
+    { video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+    { video: { facingMode: "user" }, audio: false },
+    { video: true, audio: false }
+  ];
+  /* And a clock on each attempt. A contested camera does not always reject --
+     on Windows it can simply never answer, and the whole join is chained
+     behind it, which is how the guest ends up parked on "Menyambung ke
+     room X..." with no error and no way forward. */
+  function gumOnce(c) {
+    return new Promise(function (resolve, reject) {
+      var settled = false;
+      var t = setTimeout(function () {
+        if (settled) return;
+        settled = true; reject(new Error("camtimeout"));
+      }, 9000);
+      navigator.mediaDevices.getUserMedia(c).then(function (s) {
+        clearTimeout(t);
+        if (settled) { s.getTracks().forEach(function (tr) { tr.stop(); }); return; } // arrived late
+        settled = true; resolve(s);
+      }, function (e) {
+        clearTimeout(t);
+        if (!settled) { settled = true; reject(e); }
+      });
+    });
+  }
   function getMedia() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
       return Promise.reject(new Error("nomedia"));
-    return navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false
-    });
+    var i = 0, last = null;
+    return (function next() {
+      if (i >= CAM_TRIES.length) return Promise.reject(last || new Error("nocam"));
+      return gumOnce(CAM_TRIES[i++]).catch(function (e) { last = e; return next(); });
+    })();
+  }
+  function haveCam() { return !!(localStream && localStream.getVideoTracks().length); }
+  /* The answering side takes over the video lane the offer brought, rather
+     than making one of its own that never gets associated. Must run before
+     createAnswer, or the answer goes out recvonly and the camera stays home. */
+  function adoptCamLane() {
+    if (!pc) return;
+    var t = pc.getTransceivers().filter(function (x) {
+      return x.receiver && x.receiver.track && x.receiver.track.kind === "video";
+    })[0];
+    if (!t) return;
+    camTrx = t;
+    try { t.direction = "sendrecv"; } catch (e) {} // keep the lane open for a camera that frees up later
+    var vt = localStream && localStream.getVideoTracks()[0];
+    if (vt && t.sender) t.sender.replaceTrack(vt).catch(function () {});
   }
   function showSelf() {
     ["#selfPreview", "#selfVideo"].forEach(function (s) { var v = $(s); if (v) v.srcObject = localStream; });
   }
+  // both screens carry the same button; whichever one is up gets it
+  function refreshCamUI() {
+    var on = haveCam();
+    ["#cam-retry", "#wait-cam"].forEach(function (s) { var b = $(s); if (b) b.hidden = on; });
+  }
+  var camMsg = "";
+  // the note follows you across screens -- it was being written to the lobby
+  // half a second before the lobby stopped being the screen you were on
+  function camHint() { if (!haveCam() && camMsg) setStatus(statusEl(), camMsg, true); }
+  function camNote(e) {
+    var n = (e && (e.name || e.message)) || "";
+    var t;
+    if (n === "NotReadableError" || n === "TrackStartError" || n === "AbortError" || n === "camtimeout")
+      t = "Kamera lagi dipakai aplikasi lain (Discord/Zoom/tab lain) — tutup kameranya di sana, terus pencet “Nyalakan kamera”. Sesinya tetap jalan kok.";
+    else if (n === "NotAllowedError" || n === "SecurityError" || n === "PermissionDeniedError")
+      t = "Kamera belum diizinkan. Klik ikon kamera di address bar → izinkan → pencet “Nyalakan kamera”.";
+    else if (n === "NotFoundError" || n === "DevicesNotFoundError" || n === "nocam" || n === "nomedia")
+      t = "Nggak nemu kamera. Sesinya tetap jalan — kamu masih bisa lihat dia.";
+    else
+      t = "Kamera belum bisa dipakai. Sesinya tetap jalan — pencet “Nyalakan kamera” kalau sudah bebas.";
+    camMsg = t;
+    setStatus(statusEl(), t, true);
+  }
+  /* Pick the camera up mid-session, without a second handshake. The video lane
+     is reserved as sendrecv at connect time (see newPC), so a track that turns
+     up later just slides into the sender that is already there. */
+  function retryCam() {
+    setStatus(statusEl(), "Nyari kamera…");
+    return getMedia().then(function (s) {
+      var t = s.getVideoTracks()[0];
+      if (!t) { s.getTracks().forEach(function (x) { x.stop(); }); throw new Error("nocam"); }
+      if (localStream) localStream.getTracks().forEach(function (x) { x.stop(); });
+      localStream = s; camMsg = "";
+      showSelf(); refreshCamUI(); applyLookToPreview();
+      if (camTrx && camTrx.sender) camTrx.sender.replaceTrack(t).catch(function () {});
+      setStatus(statusEl(), "Kamera nyala ✓");
+    }).catch(camNote);
+  }
+  function dropCam() {
+    if (localStream) localStream.getTracks().forEach(function (t) { t.stop(); });
+    localStream = null;
+    showSelf(); refreshCamUI();
+  }
   var remoteReady = false, candQueue = [], candTimers = [], candPollStop = false, connTimer = null;
+  var camTrx = null;
 
   function newPC(candSlot) {
     relayCount = 0;
     var p = new RTCPeerConnection({ iceServers: ICE.iceServers });
-    localStream.getTracks().forEach(function (t) { p.addTrack(t, localStream); });
+    /* A LANE FOR THE CAMERA WHETHER OR NOT WE HAVE ONE.
+       addTrack needs a track, so a busy camera used to mean no video lane at
+       all -- and the old code did not even get that far, it threw the whole
+       join away. addTransceiver reserves a sendrecv lane with nothing in it,
+       so the call still forms, HER picture still arrives, and a camera that
+       frees up later drops straight into the sender that is already there.
+
+       ONLY THE SIDE THAT WRITES THE OFFER CREATES IT. Chrome does not reliably
+       adopt a transceiver the answering side made in advance -- measured, the
+       guest finished with an orphan (mid null, camera attached, going nowhere)
+       sitting beside the recvonly one the offer had created, and answered
+       "recvonly" with its camera plainly running. The answerer takes over the
+       lane the offer brings instead; see adoptCamLane. */
+    camTrx = null;
+    if (role === "host") {
+      var vt = localStream ? (localStream.getVideoTracks()[0] || null) : null;
+      camTrx = p.addTransceiver(vt || "video", {
+        direction: "sendrecv",
+        streams: [localStream || new MediaStream()]
+      });
+    }
     // data channel to broadcast the countdown so BOTH sides pose together
     if (role === "host") { dc = p.createDataChannel("pb"); setupDC(dc); }
     else { p.ondatachannel = function (e) { dc = e.channel; setupDC(dc); }; }
     p.ontrack = function (e) {
-      var rv = $("#remoteVideo"); if (rv) rv.srcObject = e.streams[0];
-      var off = $("#remote-off"); if (off) off.style.display = "none";
+      var rv = $("#remoteVideo"); if (!rv) return;
+      // a lane with no stream attached still carries a track; take either
+      rv.srcObject = (e.streams && e.streams[0]) || new MediaStream([e.track]);
+      var pr = rv.play(); if (pr && pr.catch) pr.catch(function () {});
+      applyLookToPreview();
+      /* A reserved lane exists even when the other camera is busy, so "a track
+         arrived" is not the same as "there is a picture". Say which. */
+      var off = $("#remote-off");
+      var mark = function () {
+        if (!off) return;
+        if (rv.videoWidth > 0) { off.style.display = "none"; }
+        else { off.style.display = ""; off.textContent = "kameranya lagi kepakai"; }
+      };
+      rv.addEventListener("loadedmetadata", mark);
+      rv.addEventListener("resize", mark);
+      mark(); setTimeout(mark, 2500);
     };
     // trickle: publish each local candidate the instant it's found (no gather wait)
     p.onicecandidate = function (e) {
@@ -213,11 +341,11 @@
     enterSession();
     setTimeout(stopCandPolls, 4000); // grab trailing candidates, then stop
   }
-  // whichever panel this side is actually looking at
+  // whichever panel is actually on screen -- not whichever one the role implies
   function statusEl() {
-    var s = $("#s-session");
-    if (s && s.classList.contains("on")) return "#session-status";
-    return role === "host" ? "#wait-status" : "#lobby-status";
+    var s = $("#s-session"); if (s && s.classList.contains("on")) return "#session-status";
+    var w = $("#s-wait");    if (w && w.classList.contains("on")) return "#wait-status";
+    return "#lobby-status";
   }
   function armConnectTimeout() {
     clearTimeout(connTimer);
@@ -291,11 +419,23 @@
     return s;
   }
 
-  // The camera is asked for once per visit, not once per attempt -- a reconnect
-  // must not put a permission prompt in front of someone mid-session.
+  /* The camera is asked for once per visit, not once per attempt -- a reconnect
+     must not put a permission prompt in front of someone mid-session.
+
+     AND A BUSY CAMERA NEVER ENDS THE DATE. This used to reject, which threw the
+     whole join away and dumped both of you back in the lobby with one sentence
+     about permissions. Now it connects anyway: she still appears, and the
+     camera can be picked up the moment whatever is holding it lets go. */
   function needMedia() {
     if (localStream) return Promise.resolve(localStream);
-    return getMedia().then(function (s) { localStream = s; showSelf(); return s; });
+    return getMedia().then(function (s) {
+      localStream = s; camMsg = ""; showSelf(); refreshCamUI(); applyLookToPreview(); return s;
+    }, function (e) {
+      localStream = new MediaStream(); // no tracks, but the lanes still line up
+      showSelf(); refreshCamUI();
+      camNote(e);
+      return localStream;
+    });
   }
 
   /* One handshake per side, callable again. `first` is the walk-in: it is what
@@ -335,7 +475,11 @@
           pc = newPC("cb"); // guest publishes its candidates to "cb"
           appliedTok = offer.tok || "";
           return pc.setRemoteDescription(offer).then(flushCandidates)
-            .then(function () { startCandPoll(myCode, "ca"); return pc.createAnswer(); }) // pull host candidates
+            .then(function () {
+              adoptCamLane();               // before createAnswer, or we answer recvonly
+              startCandPoll(myCode, "ca");  // pull host candidates
+              return pc.createAnswer();
+            })
             .then(function (a) { return pc.setLocalDescription(a); })
             .then(function () { return post(myCode, "answer", withTok(pc.localDescription, appliedTok)); })
             .then(function () {
@@ -366,11 +510,13 @@
     // the same pressing the host walked in from
     var link = location.origin + location.pathname + location.search + "#" + code;
     $("#share-link").value = link;
+    refreshCamUI(); camHint();
   }
   function enterSession() {
     show("s-session");
     showSelf();
     setStatus("#session-status", "Tersambung. Pilih tata letak lalu ambil foto.");
+    refreshCamUI(); camHint();
   }
 
   // ------------------------------------------------------------ capture + compose
@@ -632,6 +778,11 @@
 
   function runSession() {
     if (shooting || !connected) return;
+    // half a strip is not a keepsake -- say so instead of printing a black box
+    if (!haveCam()) {
+      setStatus("#session-status", "Kameramu belum nyala — pencet “Nyalakan kamera” dulu ya, biar fotonya nggak setengah kosong.", true);
+      return;
+    }
     shooting = true;
     $("#shoot-btn").disabled = true;
     $("#result").classList.remove("on");
@@ -829,6 +980,26 @@
     });
     $("#save-album-btn").addEventListener("click", saveToAlbum);
     $("#open-album").addEventListener("click", showAlbum);
+
+    /* A ROOM YOU CAN WALK OUT OF.
+       Making one was a one-way door: the only way back to the lobby was
+       reloading the page. Cancelling also hands the camera back, which matters
+       when the reason you are cancelling is that something else wants it. */
+    ["#cam-retry", "#wait-cam"].forEach(function (s) {
+      var b = $(s); if (b) b.addEventListener("click", function () { retryCam(); });
+    });
+    function leave(msg) {
+      cleanup(); dropCam();
+      show("s-lobby");
+      setStatus("#lobby-status", msg);
+    }
+    $("#wait-back").addEventListener("click", function () {
+      leave("Room dibatalkan. Bisa bikin lagi kapan aja.");
+    });
+    $("#session-back").addEventListener("click", function () {
+      if (!window.confirm("Keluar dari sesi berdua? Foto yang belum disimpan bakal hilang.")) return;
+      leave("Sesi selesai. Makasih ya.");
+    });
     /* Mid-session, "back" means back to the booth you are standing in. With
        nothing running, it means back to where you came from -- which by month
        five is another pressing, not this one's front page. */
