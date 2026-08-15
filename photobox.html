@@ -44,6 +44,11 @@
     .btn.solid:hover { background:var(--paper); border-color:var(--paper); color:var(--ink); }
     .btn.blue { background:var(--blue); color:var(--paper); border-color:var(--blue); }
     .btn[disabled] { opacity:.45; pointer-events:none; }
+    /* `display:inline-flex` above beats the browser's own [hidden]{display:none},
+       so hiding one of these by setting .hidden did nothing at all -- which is
+       why "Nyalakan kamera" sat there offering to fix a camera that was already
+       running. */
+    .btn[hidden] { display:none; }
 
     .screen { display:none; }
     .screen.on { display:block; }

@@ -309,10 +309,13 @@
       rv.addEventListener("resize", mark);
       mark(); setTimeout(mark, 2500);
     };
-    // trickle: publish each local candidate the instant it's found (no gather wait)
+    // trickle: publish each local candidate the instant it's found (no gather
+    // wait), stamped with the handshake it belongs to so the far side is never
+    // handed candidates from a call that no longer exists
+    var gen = genTok;
     p.onicecandidate = function (e) {
       if (e.candidate) {
-        postRaw(myCode, candSlot, JSON.stringify(e.candidate));
+        postRaw(myCode, candSlot, JSON.stringify({ tok: gen, c: e.candidate }));
         if (e.candidate.type === "relay") relayCount++;
       }
     };
@@ -364,7 +367,7 @@
      description into the same slot, which the other side notices because it
      compares against the one it already applied. Capped, so a network that is
      simply down cannot spin. */
-  var healN = 0, healT = null, appliedTok = "";
+  var healN = 0, healT = null, appliedTok = "", genTok = "";
   function healLater(ms) {
     if (healT || !role) return;
     healT = setTimeout(function () {
@@ -396,15 +399,16 @@
     candQueue.forEach(function (c) { if (pc) { try { pc.addIceCandidate(c); } catch (e) {} } });
     candQueue = [];
   }
-  function startCandPoll(code, slot) {
+  function startCandPoll(code, slot, gen) {
     var since = 0, t0 = Date.now();
+    var q = gen ? "&tok=" + encodeURIComponent(gen) : "";
     (function loop() {
       /* This used to give up after 90 seconds while the host waited five
          minutes for an answer -- so a partner who took their time walking to
          the other machine arrived to a host that had stopped listening for
          their candidates. Match the wait; it stops on its own once connected. */
       if (candPollStop || Date.now() - t0 > 300000) return;
-      fetch(api(code, slot) + "?since=" + since, { cache: "no-store" })
+      fetch(api(code, slot) + "?since=" + since + q, { cache: "no-store" })
         .then(function (r) { return r.json(); })
         .then(function (j) { if (j && j.items) { j.items.forEach(addRemoteCandidate); since = j.n; } })
         .catch(function () {})
@@ -444,13 +448,14 @@
   function hostHandshake(first) {
     remoteReady = false; candQueue = []; candPollStop = false;
     var mine = tok();
+    genTok = mine;
     return needMedia().then(function () {
       pc = newPC("ca"); // host publishes its candidates to "ca"
       return pc.createOffer().then(function (o) { return pc.setLocalDescription(o); })
         .then(function () { return post(myCode, "offer", withTok(pc.localDescription, mine)); }) // send offer immediately
         .then(function () {
           if (first) showWaiting(myCode);
-          startCandPoll(myCode, "cb"); // pull guest candidates
+          startCandPoll(myCode, "cb", mine); // pull guest candidates for THIS call
           armConnectTimeout();
           // only the answer to THIS offer -- an answer to the previous one
           // describes a connection that no longer exists. A tokenless answer is
@@ -472,12 +477,13 @@
     return poll(myCode, "offer", first ? 20000 : 120000, function (o) { return o.tok !== appliedTok; })
       .then(function (offer) {
         return needMedia().then(function () {
-          pc = newPC("cb"); // guest publishes its candidates to "cb"
           appliedTok = offer.tok || "";
+          genTok = appliedTok;              // our candidates belong to HIS handshake
+          pc = newPC("cb");                 // guest publishes its candidates to "cb"
           return pc.setRemoteDescription(offer).then(flushCandidates)
             .then(function () {
-              adoptCamLane();               // before createAnswer, or we answer recvonly
-              startCandPoll(myCode, "ca");  // pull host candidates
+              adoptCamLane();                            // before createAnswer, or we answer recvonly
+              startCandPoll(myCode, "ca", appliedTok);   // pull host candidates for THIS call
               return pc.createAnswer();
             })
             .then(function (a) { return pc.setLocalDescription(a); })

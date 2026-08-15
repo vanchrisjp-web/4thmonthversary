@@ -104,18 +104,45 @@ export class PhotoRoom {
         return new Response(v, { headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" } });
       }
     }
-    // ca / cb — trickle ICE candidate lists (append-only; read new ones since an index)
+    /* ca / cb — trickled ICE candidates, kept PER HANDSHAKE.
+
+       This was one append-only list per side, capped at 150 and never cleared.
+       Every reconnect piled another dozen candidates onto it, all of them
+       carrying the ufrag of an ICE generation that no longer exists, and the
+       receiving browser quietly discards those. Once the cap was reached the
+       room stopped accepting new ones altogether -- so the two sides could
+       gather perfectly good relay candidates all evening and never be handed a
+       single usable one. Reported from the far side as "kandidat relay ada (6)
+       tapi belum nyambung", which is exactly what it looks like: TURN working,
+       nothing to connect to. And it got worse with every retry, which is why it
+       could work once and then never again in the same room.
+
+       Each handshake has a token (see the offer/answer slots). A candidate is
+       stored under the token it was gathered for; a POST bearing a new token
+       starts that side's list over, and a GET only ever receives candidates
+       from the generation it asked for. Stale ones cannot accumulate, cannot
+       fill the cap, and cannot be handed to a connection that will reject
+       them. */
     if (slot === "ca" || slot === "cb") {
       if (request.method === "POST" || request.method === "PUT") {
         const body = await request.text();
-        const arr = (await st.get(slot)) || [];
-        if (arr.length < 150 && body.length < 4000) { arr.push(body); await st.put(slot, arr); }
-        return jsonRes({ ok: true, n: arr.length });
+        if (body.length > 4000) return jsonRes({ ok: true, n: 0 });
+        let msg = null;
+        try { msg = JSON.parse(body); } catch (e) { msg = null; }
+        const tok = (msg && typeof msg.tok === "string") ? msg.tok.slice(0, 40) : "";
+        const cand = msg && msg.c ? JSON.stringify(msg.c) : body; // pre-token clients
+        const box = (await st.get(slot)) || { tok: "", list: [] };
+        if (box.tok !== tok) { box.tok = tok; box.list = []; }   // a new call, a clean slate
+        if (box.list.length < 150) { box.list.push(cand); await st.put(slot, box); }
+        return jsonRes({ ok: true, n: box.list.length });
       }
       if (request.method === "GET") {
         const since = parseInt(url.searchParams.get("since") || "0", 10) || 0;
-        const arr = (await st.get(slot)) || [];
-        return jsonRes({ items: arr.slice(since), n: arr.length });
+        const want = url.searchParams.get("tok");
+        const box = (await st.get(slot)) || { tok: "", list: [] };
+        // asking for a generation this side has not started yet: nothing to give
+        if (want != null && box.tok !== want) return jsonRes({ items: [], n: 0, gen: box.tok });
+        return jsonRes({ items: box.list.slice(since), n: box.list.length, gen: box.tok });
       }
     }
     return jsonRes({ error: "bad_request" }, 400);
