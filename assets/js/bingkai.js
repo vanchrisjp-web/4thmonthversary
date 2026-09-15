@@ -122,6 +122,8 @@
     // the green screen: which wallpaper, how you are cut out, and where you stand in "Satu tempat"
     latar: "asli", potong: "otomatis", peka: 45, tepi: 2,
     besarH: 100, besarG: 100, jarakOrang: 45, depan: "G", wallKey: "",
+    // where each of you was dragged to in the preview, a share of the picture you stand in (host H, guest G)
+    geserHX: 0, geserHY: 0, geserGX: 0, geserGY: 0,
     at: 0
   };
 
@@ -168,6 +170,10 @@
     o.besarH = int(v.besarH, 50, 160, DEF.besarH);
     o.besarG = int(v.besarG, 50, 160, DEF.besarG);
     o.jarakOrang = int(v.jarakOrang, 0, 100, DEF.jarakOrang);
+    o.geserHX = int(v.geserHX, -90, 90, DEF.geserHX);
+    o.geserHY = int(v.geserHY, -90, 90, DEF.geserHY);
+    o.geserGX = int(v.geserGX, -90, 90, DEF.geserGX);
+    o.geserGY = int(v.geserGY, -90, 90, DEF.geserGY);
     if (v.depan === "H" || v.depan === "G") o.depan = v.depan;
     if (typeof v.wallKey === "string" && /^[a-z0-9]{1,24}$/.test(v.wallKey)) o.wallKey = v.wallKey;
     o.at = isFinite(Number(v.at)) && Number(v.at) > 0 ? Number(v.at) : 0;
@@ -775,13 +781,34 @@
   function paste(dst, L) {
     dst.save(); dst.setTransform(1, 0, 0, 1, 0, 0); dst.drawImage(L, 0, 0); dst.restore();
   }
+  /* WHERE ONE OF YOU WAS DRAGGED TO (15 Sep; Evan: "drag myself and my
+     girlfriend to adjust our position ... same as hers as well"). geserHX/HY
+     are the host's, geserGX/GY the guest's, each a share of the picture that
+     person stands in. Like size, it follows the person. Across the two
+     screens it is a mirror: each booth shows its own camera on the left (and
+     mirrored), so a step towards the other person on one screen is a step
+     towards them on the other. */
+  function geser(o, env, who) {
+    var guest = (who === "a") === (env.role === "guest"), mirror = env.role === "guest" ? -1 : 1;
+    return { x: (guest ? o.geserGX : o.geserHX) / 100 * mirror, y: (guest ? o.geserGY : o.geserHY) / 100 };
+  }
+  // where a person stands in this picture, so the booth can tell whom a finger took hold of
+  function hit(env, who, box, area) {
+    if (!env.hits) return;
+    var x0 = Math.max(box.x, area.x), y0 = Math.max(box.y, area.y);
+    var x1 = Math.min(box.x + box.w, area.x + area.w), y1 = Math.min(box.y + box.h, area.y + area.h);
+    // x/y/w/h: the part inside the picture; bx/by/bw/bh: the whole camera picture, whose middle is the person
+    if (x1 > x0 && y1 > y0) env.hits.push({ who: who, x: x0, y: y0, w: x1 - x0, h: y1 - y0, bx: box.x, by: box.y, bw: box.w, bh: box.h, aw: area.w, ah: area.h });
+  }
   // a picture with a wallpaper behind it (every layout but "Satu tempat")
-  function cutout(g, src, x, y, w, h, o, env) {
+  function cutout(g, src, x, y, w, h, o, env, who) {
     if (o.latar === "asli" || !src.mask || !env.layer || !env.wall) return false;
-    var S = layerFor(env, x, y, w, h);
+    var S = layerFor(env, x, y, w, h), d = geser(o, env, who), box = coverBox(src, x, y, w, h);
+    box.x += d.x * w; box.y += d.y * h;
     env.wall(S.g, x, y, w, h);
-    paste(S.g, cutPerson(env, coverBox(src, x, y, w, h), src, o, x, y, w, h));
+    paste(S.g, cutPerson(env, box, src, o, x, y, w, h));
     lay(g, S.c, x, y, w, h, env);
+    hit(env, who, box, { x: x, y: y, w: w, h: h });
     return true;
   }
   function silhouette(g, box, env, who) {
@@ -800,9 +827,11 @@
     if (o.latar === "asli" || !env.layer || !env.wall) return false;
     var S = layerFor(env, x, y, w, h);
     env.wall(S.g, x, y, w, h);
-    var bh = h * 0.86, bw = bh * 4 / 3;
-    silhouette(S.g, { x: x + (w - bw) / 2, y: y + h - bh, w: bw, h: bh }, env, c.who);
+    var bh = h * 0.86, bw = bh * 4 / 3, d = geser(o, env, c.who);
+    var box = { x: x + (w - bw) / 2 + d.x * w, y: y + h - bh + d.y * h, w: bw, h: bh };
+    silhouette(S.g, box, env, c.who);
     lay(g, S.c, x, y, w, h, env);
+    hit(env, c.who, box, { x: x, y: y, w: w, h: h });
     return true;
   }
   /* "Satu tempat". The wallpaper, then each of you cut out and standing on
@@ -834,15 +863,16 @@
       var guest = (k.who === "a") === guestIsA;
       var hh = c.h * 0.9 * (guest ? o.besarG : o.besarH) / 100;
       var ww = hh * (src ? src.w / src.h : 4 / 3);
-      var cx = c.x + c.w / 2 + k.pos * d / 2;
-      var box = { x: cx - ww / 2, y: c.y + c.h - hh, w: ww, h: hh };
-      if (src && src.mask) paste(S.g, cutPerson(env, box, src, o, c.x, c.y, c.w, c.h));
+      var dg = geser(o, env, k.who);
+      var cx = c.x + c.w / 2 + k.pos * d / 2 + dg.x * c.w;
+      var box = { x: cx - ww / 2, y: c.y + c.h - hh + dg.y * c.h, w: ww, h: hh };
+      if (src && src.mask) { paste(S.g, cutPerson(env, box, src, o, c.x, c.y, c.w, c.h)); hit(env, k.who, box, c); }
       else if (src) {
         var hx = k.pos < 0 ? c.x : c.x + c.w / 2;
         S.g.save(); S.g.beginPath(); S.g.rect(hx, c.y, c.w / 2, c.h); S.g.clip();
         frameAt(S.g, src.img, coverBox(src, hx, c.y, c.w / 2, c.h), src.flip);
         S.g.restore();
-      } else silhouette(S.g, box, env, k.who);
+      } else { silhouette(S.g, box, env, k.who); hit(env, k.who, box, c); }
     });
     lay(g, S.c, c.x, c.y, c.w, c.h, env);
   }
@@ -886,7 +916,7 @@
     }
     if (c.scene) drawScene(g, p, c, o, pal, env);
     else if (src) {
-      if (!cutout(g, src, bx, c.y, bw, c.h, o, env) && !cover(g, src, bx, c.y, bw, c.h, env.filter)) placeholder(g, c, pal, env, bx, c.y, bw, c.h, p.shots);
+      if (!cutout(g, src, bx, c.y, bw, c.h, o, env, c.who) && !cover(g, src, bx, c.y, bw, c.h, env.filter)) placeholder(g, c, pal, env, bx, c.y, bw, c.h, p.shots);
     } else if (!wallPlaceholder(g, c, o, env, bx, c.y, bw, c.h)) placeholder(g, c, pal, env, bx, c.y, bw, c.h, p.shots);
     g.restore();
     if (o.garis && pal.line && !c.part && !c.card) {

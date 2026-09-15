@@ -1127,6 +1127,7 @@
     var received = pv.mode === "received" && pv.img;
     var p = received ? null : BK.plan(studio);
     var W0 = received ? pv.img.naturalWidth : p.W, H0 = received ? pv.img.naturalHeight : p.H;
+    pv.W0 = W0;
     var availW = Math.max(120, pv.boxW || 320), availH = Math.max(240, Math.min(window.innerHeight * 0.7, 820));
     var s = Math.min(availW / W0, availH / H0), dpr = Math.min(2, window.devicePixelRatio || 1);
     var cssW = Math.max(1, Math.round(W0 * s)), cssH = Math.max(1, Math.round(H0 * s));
@@ -1137,6 +1138,7 @@
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.clearRect(0, 0, bw, bh);
     if (received) {
+      pv.hits = [];
       g.drawImage(pv.img, 0, 0, bw, bh);
     } else {
       var k = bw / W0;
@@ -1148,7 +1150,7 @@
         filter: lookCSS(), press: pressMark(),
         date: pv.mode === "result" ? tsText(shotAt) : nowText(),
         hot: shooting ? shotIdx : -1,
-        layer: pvLayers, wall: wallPainter(k), scale: k, role: role || "host"
+        layer: pvLayers, wall: wallPainter(k), scale: k, role: role || "host", hits: (pv.hits = [])
       });
     }
     paintDims(p);
@@ -1277,6 +1279,65 @@
       depan.appendChild(b);
     });
 
+    /* DRAG YOURSELVES. With a wallpaper behind you, either of you can take hold
+       of either person in the preview and move them. The drawing says where each
+       person stands (bingkai's hits); a drag turns into geserH / geserG, a share
+       of that person's picture, and rides with the rest of the studio to the
+       other booth, where the newer set wins. On the guest's screen the sideways
+       step is mirrored, as bingkai draws it. */
+    var cvp = $("#pv");
+    if (cvp) {
+      var drag = null;
+      var planAt = function (e) {
+        var r = cvp.getBoundingClientRect();
+        if (!r.width || !pv.W0) return null;
+        var k = pv.W0 / r.width;
+        return { x: (e.clientX - r.left) * k, y: (e.clientY - r.top) * k };
+      };
+      var personAt = function (pt) {
+        var list = pv.hits || [];
+        for (var i = list.length - 1; i >= 0; i--) {         // the one drawn last is in front
+          // a person stands in the middle of their camera picture, not across all of it: the sky beside them is nobody
+          var h = list[i], l = Math.max(h.x, h.bx + h.bw * 0.22), r = Math.min(h.x + h.w, h.bx + h.bw * 0.78);
+          var t = Math.max(h.y, h.by + h.bh * 0.08), b = h.y + h.h;
+          if (pt.x >= l && pt.x <= r && pt.y >= t && pt.y <= b) return h;
+        }
+        return null;
+      };
+      var canDrag = function () { return pv.mode !== "received" && wantsCut() && !shooting; };
+      cvp.addEventListener("pointerdown", function (e) {
+        if (!canDrag()) return;
+        var pt = planAt(e), h = pt && personAt(pt);
+        if (!h) return;
+        var guestPerson = (h.who === "a") === (role === "guest");
+        var kx = guestPerson ? "geserGX" : "geserHX", ky = guestPerson ? "geserGY" : "geserHY";
+        drag = { id: e.pointerId, x: pt.x, y: pt.y, aw: h.aw, ah: h.ah, kx: kx, ky: ky, sx: studio[kx], sy: studio[ky] };
+        try { cvp.setPointerCapture(e.pointerId); } catch (x) {}
+        cvp.classList.add("is-dragging");
+        e.preventDefault();
+      });
+      cvp.addEventListener("pointermove", function (e) {
+        var pt = planAt(e);
+        if (!pt) return;
+        if (!drag) { cvp.style.cursor = canDrag() && personAt(pt) ? "grab" : ""; return; }
+        if (e.pointerId !== drag.id) return;
+        var mirror = role === "guest" ? -1 : 1, o = {};
+        o[drag.kx] = Math.round(drag.sx + (pt.x - drag.x) / drag.aw * 100 * mirror);
+        o[drag.ky] = Math.round(drag.sy + (pt.y - drag.y) / drag.ah * 100);
+        if (o[drag.kx] !== studio[drag.kx] || o[drag.ky] !== studio[drag.ky]) setStudio(o);
+      });
+      var letGo = function (e) {
+        if (!drag || (e && e.pointerId !== drag.id)) return;
+        drag = null;
+        cvp.classList.remove("is-dragging");
+      };
+      cvp.addEventListener("pointerup", letGo);
+      cvp.addEventListener("pointercancel", letGo);
+      cvp.addEventListener("lostpointercapture", letGo);
+    }
+    var geserReset = $("#st-geser-reset");
+    if (geserReset) geserReset.addEventListener("click", function () { setStudio({ geserHX: 0, geserHY: 0, geserGX: 0, geserGY: 0 }); });
+
     var lookRow = document.querySelector(".looks");
     if (lookRow) Object.keys(LOOKS).forEach(function (k) {
       var b = el("button", "chip", LOOKS[k].name); b.type = "button";
@@ -1398,6 +1459,9 @@
     });
     var hj = $("#st-hijau"); if (hj) hj.hidden = studio.potong !== "hijau";
     var br = $("#st-bareng"); if (br) br.hidden = studio.layout !== "bareng";
+    var gs = $("#st-geser"); if (gs) gs.hidden = !wantsCut();
+    var grs = $("#st-geser-reset"); if (grs) grs.disabled = !(studio.geserHX || studio.geserHY || studio.geserGX || studio.geserGY);
+    var pvc = $("#pv"); if (pvc) pvc.style.touchAction = wantsCut() ? "none" : "";   // a finger on a person drags, not scrolls
     var chg = $("#st-wall-change"); if (chg) chg.hidden = studio.latar !== "foto";
     var guest = role === "guest";
     [["kamu", guest ? "besarG" : "besarH"], ["dia", guest ? "besarH" : "besarG"]].forEach(function (x) {

@@ -133,6 +133,7 @@
         radial-gradient(120% 90% at 50% 0%, rgba(242,237,227,0.07), rgba(242,237,227,0) 70%),
         repeating-linear-gradient(45deg, rgba(242,237,227,0.025) 0 10px, rgba(0,0,0,0) 10px 20px); }
     .st-canvasbox canvas { display:block; max-width:100%; box-shadow:0 18px 40px -18px rgba(0,0,0,.8); }
+    .st-canvasbox canvas.is-dragging { cursor:grabbing; }
     .st-dim { display:flex; justify-content:space-between; gap:.6rem; flex-wrap:wrap; margin-top:.5rem; }
     .st-dim .live::before { content:""; display:inline-block; width:.5em; height:.5em; border-radius:50%; background:var(--pink); margin-right:.45em; vertical-align:.08em; animation:blink 1.6s steps(2,end) infinite; }
     @keyframes blink { 50% { opacity:.2 } }
@@ -351,6 +352,11 @@
           </div>
           <label class="st-lab" for="st-tepi">Kelembutan tepi <output id="o-tepi"></output></label>
           <input class="st-range" id="st-tepi" type="range" min="0" max="10" step="1" data-key="tepi">
+          <div class="st-group" id="st-geser" hidden>
+            <span class="st-lab">Posisi kalian</span>
+            <p class="st-note">Tarik kamu atau dia langsung di pratinjau buat geser posisinya. Ikut ke layar dia juga.</p>
+            <div class="st-toggles"><button class="chip" type="button" id="st-geser-reset">Balikin posisi</button></div>
+          </div>
           <div class="st-group" id="st-bareng" hidden>
             <span class="st-lab">Satu tempat</span>
             <label class="st-lab" for="st-besar-kamu">Besar kamu <output id="o-besar-kamu"></output></label>

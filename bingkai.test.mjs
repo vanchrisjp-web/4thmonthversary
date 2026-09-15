@@ -358,4 +358,55 @@ t("the green-screen options are clamped", () => {
   assert.equal(k.wallKey, "");
 });
 
+/* ---- dragging yourselves (15 Sep) ---- */
+const drawnAt = (opts, role, name, src = twoFaces) => {
+  const log = [];
+  B.draw(fakeContext(), B.plan(opts), opts, { src, layer: layerFactory(log), wall: () => {}, scale: 1, role, date: "", press: "" });
+  const c = log.find((x) => x[0] === "drawImage" && x[1] === name);
+  return [c[2], c[3]];
+};
+const close = (a, b) => Math.abs(a - b) < 0.05;
+
+t("where each of you was dragged is clamped, and starts where you always stood", () => {
+  const k = B.norm({ geserHX: 250, geserHY: "-30", geserGX: "x", geserGY: 12.4 });
+  assert.deepEqual([k.geserHX, k.geserHY, k.geserGX, k.geserGY], [90, -30, 0, 12]);
+  const d = B.norm({});
+  assert.deepEqual([d.geserHX, d.geserHY, d.geserGX, d.geserGY], [0, 0, 0, 0]);
+});
+
+t("in one place, a dragged person moves on both screens, mirrored sideways, and the other stays", () => {
+  const still = { layout: "bareng", latar: "studio" }, moved = { ...still, geserHX: 20, geserHY: -10 };
+  const c = B.plan(still).cells[0];
+  // the host is "a" on the host's screen and "b" on the guest's
+  const [h0x, h0y] = drawnAt(still, "host", "imgA"), [h1x, h1y] = drawnAt(moved, "host", "imgA");
+  assert.ok(close(h1x - h0x, 0.2 * c.w) && close(h1y - h0y, -0.1 * c.h), "on his screen: right and up");
+  const [g0x, g0y] = drawnAt(still, "guest", "imgB"), [g1x, g1y] = drawnAt(moved, "guest", "imgB");
+  assert.ok(close(g1x - g0x, -0.2 * c.w) && close(g1y - g0y, -0.1 * c.h), "on hers, the mirror: left and up");
+  assert.ok(close(drawnAt(moved, "host", "imgB")[0], drawnAt(still, "host", "imgB")[0]), "the guest has not moved");
+  assert.ok(close(drawnAt({ ...still, geserGX: 30 }, "host", "imgA")[0], h0x), "the guest's own offset moves only the guest");
+});
+
+t("in any layout on a wallpaper, dragging moves that person inside their own picture", () => {
+  const still = { layout: "side", latar: "sakura" }, moved = { ...still, geserGX: -25, geserGY: 15 };
+  const cellB = B.plan(still).cells.find((k) => k.who === "b");
+  const [x0, y0] = drawnAt(still, "host", "imgB"), [x1, y1] = drawnAt(moved, "host", "imgB");
+  assert.ok(close(x1 - x0, -0.25 * cellB.w) && close(y1 - y0, 0.15 * cellB.h), "the guest, on the host's screen");
+  assert.ok(close(drawnAt(moved, "host", "imgA")[0], drawnAt(still, "host", "imgA")[0]), "and not the host");
+});
+
+t("the drawing says where each person stands, inside their picture, so a finger can take hold of them", () => {
+  const run = (opts, src) => {
+    const hits = [];
+    B.draw(fakeContext(), B.plan(opts), opts, { src, layer: layerFactory([]), wall: () => {}, scale: 1, role: "host", date: "", press: "", hits });
+    return hits;
+  };
+  const scene = run({ layout: "bareng", latar: "ladang" }, twoFaces);
+  assert.deepEqual(J(scene.map((h) => h.who).sort()), ["a", "b"]);
+  const c = B.plan({ layout: "bareng" }).cells[0];
+  assert.ok(scene.every((h) => h.x >= c.x - 0.01 && h.x + h.w <= c.x + c.w + 0.01 && h.aw === c.w && h.ah === c.h && h.bw > 0 && h.bh > 0));
+  assert.equal(run({ layout: "bareng", latar: "ladang" }, () => null).length, 2, "the places for you, before any camera");
+  assert.ok(run({ layout: "strip", latar: "kebun" }, twoFaces).length >= 2, "every picture of a strip");
+  assert.equal(run({ layout: "strip" }, twoFaces).length, 0, "with Asli there is nobody cut out to move");
+});
+
 console.log(n + " tests passed");

@@ -40,3 +40,18 @@ sizes exactly.
   `keepPlaying()` starts them from script.
 - A wallpaper photo of your own travels to the other booth as `{t:"wall"}` chunks, in the same
   queue as strips.
+
+## Dragging yourselves (15 Sep, evening)
+
+- With a wallpaper (any layout, and "Satu tempat"), either booth can take hold of either person
+  in the preview and move them. Each person's place is `geserHX/HY` (host) and `geserGX/GY`
+  (guest), a share of the picture they stand in, clamped to ±90. It rides with the studio
+  (`{t:"studio"}`, newer wins), so the print uses it too.
+- Each booth shows its own camera on the left and mirrored, so the sideways value is mirrored on
+  the guest's screen (`geser()` in `bingkai.js`, and the drag in `photobox.js`). A step towards
+  the other person stays a step towards them on both screens.
+- `bingkai.draw` reports where each person stands in `env.hits`. The booth grabs only the middle
+  of a camera picture, since the sky beside a person is nobody, and the one drawn last wins.
+  "Balikin posisi" in the Latar tab puts both back. Tested in `bingkai.test.mjs`.
+- The two-booth sync of a drag has not been driven live with two cameras: it rides the same
+  studio message as every other choice.
