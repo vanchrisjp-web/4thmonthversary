@@ -219,8 +219,27 @@
     if (vt && t.sender) t.sender.replaceTrack(vt).catch(function () {});
   }
   function showSelf() {
-    ["#selfPreview", "#selfVideo"].forEach(function (s) { var v = $(s); if (v) v.srcObject = localStream; });
+    ["#selfPreview", "#selfVideo"].forEach(function (s) { var v = $(s); if (v) { v.srcObject = localStream; keepPlaying(v); } });
     pvKick();
+  }
+  /* KEEP THE MIRRORS RUNNING.
+     A muted video started by the autoplay attribute is paused by Chrome while
+     it is scrolled out of view, and resumes only when it comes back. The live
+     preview, the cut-out and the shutter all read from these videos, so a
+     mirror scrolled off the top of a phone froze the strip -- found as a black
+     frame the segmenter rightly found nobody in. Playback started from script
+     is not paused that way; and if one stops anyway, start it again. */
+  function keepPlaying(v) {
+    if (!v) return;
+    v.removeAttribute("autoplay");
+    if (!v._keep) {
+      v._keep = true;
+      v.addEventListener("pause", function () {
+        if (!v.srcObject) return;
+        var p = v.play(); if (p && p.catch) p.catch(function () {});
+      });
+    }
+    if (v.srcObject && v.paused) { var p = v.play(); if (p && p.catch) p.catch(function () {}); }
   }
   // both screens carry the same button; whichever one is up gets it
   function refreshCamUI() {
@@ -328,6 +347,7 @@
       var rv = $("#remoteVideo"); if (!rv) return;
       // a lane with no stream attached still carries a track; take either
       rv.srcObject = (e.streams && e.streams[0]) || new MediaStream([e.track]);
+      keepPlaying(rv);
       var pr = rv.play(); if (pr && pr.catch) pr.catch(function () {});
       applyLookToPreview();
       /* A reserved lane exists even when the other camera is busy, so "a track
@@ -703,13 +723,18 @@
     return function (cell) {
       if (!pairs || !pairs.length) return null;
       var pr = pairs[cell.shot % pairs.length], cv = pr && pr[cell.who];
-      return cv ? { img: cv, w: cv.width, h: cv.height } : null;
+      if (!cv) return null;
+      var mask = wantsCut() && pr.masks ? pr.masks[cell.who + maskKey()] || null : null;
+      return { img: cv, w: cv.width, h: cv.height, mask: mask };
     };
   }
   function compose(pairs) {
     var p = BK.plan(studio);
     var c = document.createElement("canvas"); c.width = p.W; c.height = p.H;
-    BK.draw(c.getContext("2d"), p, studio, { src: pairSource(pairs), filter: lookCSS(), date: tsText(shotAt), press: pressMark() });
+    BK.draw(c.getContext("2d"), p, studio, {
+      src: pairSource(pairs), filter: lookCSS(), date: tsText(shotAt), press: pressMark(),
+      layer: freshLayer, wall: wallPainter(1), scale: 1, role: role || "host"
+    });
     c._clear = studio.frame === "none" && studio.layout === "polaroid";   // the only strip with see-through corners
     return c;
   }
@@ -772,6 +797,7 @@
     studio = next;
     clearTimeout(saveT); saveT = setTimeout(saveStudio, 250);
     applyLookToPreview(); paintStudio(); pvKick(); thumbsSoon();
+    if (wantsCut() && studio.potong === "otomatis") loadCut();
     if (lastPairs && pv.mode === "result") recomposeSoon();
     if (!remote) {
       if (pv.mode === "received" && dcOpen()) { pv.pending = true; pvKick(); }
@@ -798,6 +824,257 @@
     s.textContent = dcOpen() ? "Diatur di sini, ikut ke layar dia." : "Tersimpan di perangkat ini, nanti ikut ke layar dia.";
   }
 
+  // ------------------------------------------------------------ the green screen
+  /* WHO IS YOU, AND WHAT IS THE ROOM.
+     Two ways to cut a person out of a camera frame:
+       otomatis  MediaPipe's selfie segmenter, vendored under assets/vendor
+                 (no CDN at runtime) and run here on both cameras. No green
+                 cloth needed. Loaded only once a wallpaper is chosen, so a
+                 booth that never uses it never downloads it.
+       hijau     a real green screen, keyed pixel by pixel (Latar.chroma).
+     Masks are made for the live preview a few times a second, and again, at
+     full quality, for every picture that is printed. If the cutter cannot run
+     on this device the studio says so and the cameras are used as they are:
+     nobody is ever left out of a strip. */
+  var MP = "assets/vendor/mediapipe/";
+  var CUT = { state: "idle", seg: null, ready: null, note: "", live: { a: null, b: null }, key: { a: null, b: null }, t: 0 };
+  function wantsCut(o) { o = o || studio; return o.latar !== "asli" || o.layout === "bareng"; }
+  function maskKey() { return studio.potong === "hijau" ? "k" + studio.peka : "s"; }
+  function loadCut() {
+    if (CUT.ready) return CUT.ready;
+    CUT.state = "loading"; paintCut();
+    var imp = null;
+    try { imp = new Function("u", "return import(u)"); } catch (e) {}
+    if (!imp) {
+      CUT.state = "failed"; CUT.note = "no dynamic import"; paintCut();
+      CUT.ready = Promise.resolve(null);
+      return CUT.ready;
+    }
+    var abs = function (p) { return new URL(MP + p, location.href).href; };
+    CUT.ready = imp(abs("vision_bundle.mjs")).then(function (vision) {
+      return vision.FilesetResolver.forVisionTasks(abs("wasm")).then(function (files) {
+        var make = function (delegate) {
+          return vision.ImageSegmenter.createFromOptions(files, {
+            baseOptions: { modelAssetPath: abs("selfie_segmenter.tflite"), delegate: delegate },
+            runningMode: "IMAGE", outputCategoryMask: false, outputConfidenceMasks: true
+          });
+        };
+        return make("GPU").catch(function () { return make("CPU"); });
+      });
+    }).then(function (seg) {
+      CUT.seg = seg; CUT.state = "ready"; paintCut(); pvKick(); thumbsSoon();
+      return seg;
+    }).catch(function (e) {
+      CUT.state = "failed"; CUT.note = (e && e.message) || String(e); paintCut();
+      return null;
+    });
+    return CUT.ready;
+  }
+  // person confidence from the segmenter, as a mask canvas (reused when given)
+  function segMask(source, into) {
+    if (!CUT.seg) return null;
+    var out = null;
+    try {
+      CUT.seg.segment(source, function (res) {
+        var list = res && res.confidenceMasks;
+        var m = list && list[list.length - 1];   // one channel, or the person channel after background
+        if (!m) return;
+        var w = m.width, h = m.height, c = into || document.createElement("canvas");
+        if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+        var g = c.getContext("2d"), img = g.createImageData(w, h);
+        window.Latar.alpha(m.getAsFloat32Array(), img.data);
+        g.putImageData(img, 0, 0);
+        out = c;
+      });
+    } catch (e) { CUT.note = (e && e.message) || String(e); }
+    return out;
+  }
+  // a real green screen: the frame, keyed (at most maxW wide)
+  function keyMask(source, w, h, into, maxW) {
+    if (!w || !h) return null;
+    var mw = Math.max(1, Math.min(maxW || 480, w)), mh = Math.max(1, Math.round(mw * h / w));
+    var c = into || document.createElement("canvas");
+    if (c.width !== mw || c.height !== mh) { c.width = mw; c.height = mh; }
+    var g = c.getContext("2d", { willReadFrequently: true });
+    g.clearRect(0, 0, mw, mh);
+    try { g.drawImage(source, 0, 0, mw, mh); } catch (e) { return null; }
+    var img = g.getImageData(0, 0, mw, mh);
+    window.Latar.chroma(img.data, studio.peka);
+    g.putImageData(img, 0, 0);
+    return c;
+  }
+  function liveMasks(now) {
+    if (!wantsCut() || now - CUT.t < 100) return;
+    CUT.t = now;
+    var hijau = studio.potong === "hijau";
+    if (!hijau) loadCut();
+    [["a", selfVideo()], ["b", connected ? $("#remoteVideo") : null]].forEach(function (x) {
+      var v = x[1];
+      if (!v || !v.videoWidth) return;
+      if (hijau) CUT.key[x[0]] = keyMask(v, v.videoWidth, v.videoHeight, CUT.key[x[0]], 320);
+      else if (CUT.seg) CUT.live[x[0]] = segMask(v, CUT.live[x[0]]) || CUT.live[x[0]];
+    });
+  }
+  function liveMaskFor(who) {
+    if (!wantsCut()) return null;
+    return studio.potong === "hijau" ? CUT.key[who] : CUT.live[who];
+  }
+  /* The printed pictures get masks of their own, at full size, made once per
+     way of cutting (a green-screen mask per sensitivity). */
+  function ensureMasks(pairs) {
+    if (!pairs || !wantsCut()) return Promise.resolve(false);
+    var key = maskKey(), hijau = studio.potong === "hijau";
+    var run = function () {
+      pairs.forEach(function (pr) {
+        pr.masks = pr.masks || {};
+        ["a", "b"].forEach(function (w) {
+          var cv = pr[w], slot = w + key;
+          if (!cv || pr.masks[slot]) return;
+          pr.masks[slot] = hijau ? keyMask(cv, cv.width, cv.height, null, 1280) : segMask(cv, null);
+        });
+      });
+      return true;
+    };
+    if (hijau) return Promise.resolve(run());
+    return Promise.race([loadCut(), wait(12000)]).then(run);
+  }
+  var maskJob = null;
+  function kickMasks(pairs) {
+    if (maskJob || !pairs) return;
+    var key = maskKey();
+    var done = pairs.every(function (pr) { return pr.masks && pr.masks["a" + key] && pr.masks["b" + key]; });
+    if (done || (studio.potong !== "hijau" && CUT.state === "failed")) return;
+    maskJob = ensureMasks(pairs).then(function () { maskJob = null; pvKick(); }, function () { maskJob = null; });
+  }
+  function paintCut() {
+    var el = $("#st-cut-state"); if (!el) return;
+    var t;
+    if (!wantsCut()) t = "Asli: kamera apa adanya. Pilih latar, kalian dipotong dari kamera masing-masing dan berdiri di depannya.";
+    else if (studio.potong === "hijau") t = "Layar hijau beneran: yang hijau di belakang kamu jadi latar. Naikkan kepekaan kalau masih ada sisa hijau.";
+    else if (CUT.state === "ready") t = "Pemotong otomatis siap ✓ Nggak perlu kain hijau.";
+    else if (CUT.state === "failed") t = "Pemotong otomatis nggak jalan di perangkat ini, jadi kameranya dipakai apa adanya. Pakai layar hijau beneran kalau ada.";
+    else t = "Nyiapin pemotong otomatis… sekali aja, sekitar 12 MB.";
+    if (el.textContent !== t) el.textContent = t;
+    el.classList.toggle("err", CUT.state === "failed" && studio.potong !== "hijau" && wantsCut());
+  }
+
+  // ------------------------------------------------------------ wallpapers
+  /* The wallpaper is drawn by latar.js at the size it is needed and kept, so
+     the preview does not repaint a field of flowers twelve times a second.
+     "Foto sendiri" is a picture from this device's gallery: downscaled, kept
+     on the device, and sent to the other booth down the data channel so both
+     previews stand in the same room. */
+  var wallImg = null, wallBlob = null, wallKey = "", wallMine = false, wallCache = {}, wallCacheN = 0;
+  function wallId() {
+    var id = studio.latar;
+    if (id === "asli") id = PRESS === "006" ? "ladang" : "studio";   // "Satu tempat" always needs a room
+    if (id === "foto" && !(wallImg && studio.wallKey === wallKey)) id = "studio";
+    return id;
+  }
+  function wallPainter(sc) {
+    return function (g, x, y, w, h) {
+      var id = wallId(), pw = Math.max(1, Math.round(w * sc)), ph = Math.max(1, Math.round(h * sc));
+      var key = id + (id === "foto" ? wallKey : "") + "|" + pw + "x" + ph, c = wallCache[key];
+      if (!c) {
+        if (++wallCacheN > 40) { wallCache = {}; wallCacheN = 1; }
+        c = document.createElement("canvas"); c.width = pw; c.height = ph;
+        window.Latar.draw(c.getContext("2d"), id, 0, 0, pw, ph, wallImg);
+        wallCache[key] = c;
+      }
+      g.drawImage(c, x, y, w, h);
+    };
+  }
+  function freshLayer(w, h) { var c = document.createElement("canvas"); c.width = w; c.height = h; return c; }
+  // the preview and the cards reuse their layers frame after frame
+  function layerPool() {
+    var pool = [], i = 0;
+    var take = function (w, h) {
+      var c = pool[i] || (pool[i] = document.createElement("canvas"));
+      i++;
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+      else {
+        var g = c.getContext("2d");
+        g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = "source-over";
+        try { g.filter = "none"; } catch (e) {}
+        g.clearRect(0, 0, w, h);
+      }
+      return c;
+    };
+    take.reset = function () { i = 0; };
+    return take;
+  }
+  var pvLayers = layerPool(), thumbLayers = layerPool();
+  function useWall(blob, key, mine) {
+    wallBlob = blob; wallKey = key; wallMine = !!mine;
+    var u = URL.createObjectURL(blob), im = new Image();
+    im.onload = function () { wallImg = im; wallCache = {}; wallCacheN = 0; pvKick(); thumbsSoon(); paintWallCards(true); };
+    im.src = u;
+  }
+  function pickWall(file) {
+    if (!file || !/^image\//.test(file.type || "")) return;
+    var url = URL.createObjectURL(file), im = new Image();
+    im.onload = function () {
+      var s = Math.min(1, 1600 / Math.max(im.naturalWidth, im.naturalHeight));
+      var c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(im.naturalWidth * s)); c.height = Math.max(1, Math.round(im.naturalHeight * s));
+      c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob(function (blob) {
+        if (!blob) return;
+        var key = "w" + Date.now().toString(36);
+        useWall(blob, key, true);
+        setStudio({ latar: "foto", wallKey: key });
+        sendWall();
+        keepWall(blob, key);
+      }, "image/jpeg", 0.86);
+    };
+    im.onerror = function () { URL.revokeObjectURL(url); setStatus(statusEl(), "Fotonya nggak kebaca. Coba foto lain.", true); };
+    im.src = url;
+  }
+  function keepWall(blob, key) {
+    try {
+      var fr = new FileReader();
+      fr.onload = function () { try { localStorage.setItem("pb-wall-" + PRESS, JSON.stringify({ key: key, data: fr.result })); } catch (e) {} };
+      fr.readAsDataURL(blob);
+    } catch (e) {}
+  }
+  function restoreWall() {
+    try {
+      var j = JSON.parse(localStorage.getItem("pb-wall-" + PRESS) || "null");
+      if (!j || typeof j.data !== "string" || !/^[a-z0-9]{1,24}$/.test(j.key || "")) return;
+      fetch(j.data).then(function (r) { return r.blob(); }).then(function (b) { useWall(b, j.key, true); }).catch(function () {});
+    } catch (e) {}
+  }
+  function sendWall() {
+    if (!wallBlob || !wallMine || !dcOpen()) return;
+    var key = wallKey, blob = wallBlob;
+    blob.arrayBuffer().then(function (buf) {
+      sendBinary({ t: "wall", size: buf.byteLength, mime: blob.type || "image/jpeg", key: key }, buf, function () { return key === wallKey; });
+    });
+  }
+  function paintWallCards(force) {
+    document.querySelectorAll("#st-walls canvas").forEach(function (cv) {
+      var id = cv.getAttribute("data-id");
+      if (cv._drawn && !(force && id === "foto")) return;
+      var dpr = Math.min(2, window.devicePixelRatio || 1);
+      var w = cv.clientWidth || 104, h = cv.clientHeight || 74;
+      cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+      var g = cv.getContext("2d"), W = cv.width, H = cv.height;
+      if (id === "asli") {
+        g.fillStyle = "#2A2724"; g.fillRect(0, 0, W, H);
+        g.strokeStyle = "#F2EDE3"; g.lineWidth = Math.max(1, H * 0.03);
+        g.strokeRect(W * 0.3, H * 0.3, W * 0.4, H * 0.42);
+        g.beginPath(); g.arc(W * 0.5, H * 0.51, H * 0.12, 0, Math.PI * 2); g.stroke();
+      } else if (id === "foto" && !wallImg) {
+        g.fillStyle = "#2A2724"; g.fillRect(0, 0, W, H);
+        g.strokeStyle = "rgba(242,237,227,0.6)"; g.setLineDash([H * 0.06, H * 0.05]); g.lineWidth = Math.max(1, H * 0.025);
+        g.strokeRect(W * 0.12, H * 0.14, W * 0.76, H * 0.72); g.setLineDash([]);
+        g.fillStyle = "#F2EDE3"; g.fillRect(W * 0.5 - H * 0.02, H * 0.34, H * 0.04, H * 0.32); g.fillRect(W * 0.5 - H * 0.16, H * 0.48, H * 0.32, H * 0.04);
+      } else window.Latar.draw(g, id, 0, 0, W, H, wallImg);
+      cv._drawn = cv.clientWidth > 0;
+    });
+  }
+
   // ------------------------------------------------------------ the live preview
   /* The strip as it will print, redrawn from both cameras about twelve times a
      second -- the same bingkai.draw as the print, on a context scaled down to
@@ -817,9 +1094,9 @@
   }
   function liveSource(cell) {
     var pr = shootPairs && shootPairs[cell.shot], cv = pr && pr[cell.who];
-    if (cv) return { img: cv, w: cv.width, h: cv.height };
+    if (cv) return { img: cv, w: cv.width, h: cv.height, mask: pr.masks && wantsCut() ? pr.masks[cell.who + maskKey()] || null : null };
     var v = cell.who === "a" ? selfVideo() : (connected ? $("#remoteVideo") : null);
-    if (v && v.videoWidth) return { img: v, w: v.videoWidth, h: v.videoHeight, flip: cell.who === "a" };
+    if (v && v.videoWidth) return { img: v, w: v.videoWidth, h: v.videoHeight, flip: cell.who === "a", mask: liveMaskFor(cell.who) };
     return null;
   }
   function studioShown() {
@@ -835,7 +1112,7 @@
     if (!studioShown()) return;
     var rv = $("#remoteVideo");
     var moving = pv.mode === "live" && !!(selfVideo() || (connected && rv && rv.videoWidth));
-    if (pv.dirty || (moving && t - pv.last > 80)) { pvRender(); pv.last = t; pv.dirty = false; }
+    if (pv.dirty || (moving && t - pv.last > 80)) { if (moving) liveMasks(t); pvRender(); pv.last = t; pv.dirty = false; }
     if (moving) pv.raf = requestAnimationFrame(pvFrame);
     else if (pv.mode === "live" && !pv.idle) pv.idle = setTimeout(function () { pv.idle = 0; pvKick(); }, 1000);
   }
@@ -864,11 +1141,14 @@
     } else {
       var k = bw / W0;
       g.setTransform(k, 0, 0, k, 0, 0);
+      pvLayers.reset();
+      if (pv.mode === "result" && wantsCut() && lastPairs) kickMasks(lastPairs);
       BK.draw(g, p, studio, {
         src: pv.mode === "result" ? pairSource(lastPairs) : liveSource,
         filter: lookCSS(), press: pressMark(),
         date: pv.mode === "result" ? tsText(shotAt) : nowText(),
-        hot: shooting ? shotIdx : -1
+        hot: shooting ? shotIdx : -1,
+        layer: pvLayers, wall: wallPainter(k), scale: k, role: role || "host"
       });
     }
     paintDims(p);
@@ -895,6 +1175,7 @@
   function thumbsSoon() { clearTimeout(thumbT); thumbT = setTimeout(paintThumbs, 60); }
   function paintThumbs() {
     if (!studioShown()) return;
+    paintWallCards(false);
     document.querySelectorAll("#st-layouts canvas").forEach(function (cv) {
       if (cv.offsetParent === null) return;
       thumb(cv, withPatch(studio, { layout: cv.getAttribute("data-id") }));
@@ -914,7 +1195,8 @@
     g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, bw, bh);
     var s = Math.min(bw / p.W, bh / p.H) * 0.92;
     g.setTransform(s, 0, 0, s, (bw - p.W * s) / 2, (bh - p.H * s) / 2);
-    BK.draw(g, p, o, { thumb: true, press: pressMark(), date: "" });
+    thumbLayers.reset();
+    BK.draw(g, p, o, { thumb: true, press: pressMark(), date: "", layer: thumbLayers, wall: wallPainter(s), scale: s, role: role || "host" });
   }
 
   function buildStudio() {
@@ -934,7 +1216,11 @@
     }
     var lays = $("#st-layouts");
     BK.LAYOUTS.forEach(function (L) {
-      card(lays, L.id, L.name, L.note, "data-layout", function () { setStudio({ layout: L.id }); });
+      card(lays, L.id, L.name, L.note, "data-layout", function () {
+        // standing together needs a room: an untouched "Asli" gets this pressing's wallpaper
+        if (L.id === "bareng" && studio.latar === "asli") setStudio({ layout: L.id, latar: PRESS === "006" ? "ladang" : "studio" });
+        else setStudio({ layout: L.id });
+      });
     });
     var FRAME_NOTE = { ladang: "YS-006", sisia: "YS-004", kafe: "YS-005", salju: "dingin, bersih", film: "roll film", putih: "galeri", none: "foto sampai tepi" };
     var frs = $("#st-frames");
@@ -960,6 +1246,36 @@
     chips("posisi", BK.POSISI);
     chips("huruf", BK.HURUF_ORDER.map(function (id) { return { id: id, name: BK.HURUF[id].name, font: BK.HURUF[id] }; }));
     chips("hitung", [3, 5, 10].map(function (k) { return { id: k, name: k + " detik" }; }));
+    chips("potong", [{ id: "otomatis", name: "Otomatis" }, { id: "hijau", name: "Layar hijau beneran" }]);
+
+    var walls = $("#st-walls"), file = $("#st-wall-file");
+    if (walls) window.Latar.LIST.forEach(function (Lt) {
+      card(walls, Lt.id, Lt.name, Lt.note, "data-wall", function () {
+        if (Lt.id === "foto" && !(wallImg && wallKey)) { if (file) file.click(); return; }
+        var patch = { latar: Lt.id };
+        if (Lt.id === "foto") patch.wallKey = wallKey;
+        setStudio(patch);
+      });
+    });
+    if (file) file.addEventListener("change", function () { pickWall(file.files && file.files[0]); file.value = ""; });
+    var change = $("#st-wall-change");
+    if (change) change.addEventListener("click", function () { if (file) file.click(); });
+    /* Sizes and who stands in front belong to the person: besarH is the host's,
+       besarG the guest's. "Kamu" on this screen is whichever this booth is. */
+    document.querySelectorAll("[data-person]").forEach(function (r) {
+      r.addEventListener("input", function () {
+        var guest = role === "guest", mine = r.getAttribute("data-person") === "kamu", o = {};
+        o[mine === guest ? "besarG" : "besarH"] = Number(r.value);
+        setStudio(o);
+      });
+    });
+    var depan = $("#st-depan");
+    if (depan) [["kamu", "Kamu di depan"], ["dia", "Dia di depan"]].forEach(function (x) {
+      var b = el("button", "chip", x[1]); b.type = "button";
+      b.setAttribute("data-depan", x[0]); b.setAttribute("aria-pressed", "false");
+      b.addEventListener("click", function () { setStudio({ depan: (x[0] === "kamu") === (role === "guest") ? "G" : "H" }); });
+      depan.appendChild(b);
+    });
 
     var lookRow = document.querySelector(".looks");
     if (lookRow) Object.keys(LOOKS).forEach(function (k) {
@@ -1022,6 +1338,7 @@
     if (reset) reset.addEventListener("click", function () { setStudio(BK.defaults(PRESS)); });
   }
 
+  var UNIT = { tebal: " px", jarak: " px", sudut: " px", ukuran: "%", jarakOrang: "%", peka: "", tepi: "" };
   function paintStudio() {
     var none = studio.frame === "none";
     var taken = pv.mode === "result" && lastPairs ? lastPairs.length : 0;
@@ -1058,9 +1375,10 @@
     document.querySelectorAll(".st-range[data-key]").forEach(function (r) {
       var key = r.getAttribute("data-key");
       if (document.activeElement !== r) r.value = studio[key];
-      r.disabled = none && key !== "ukuran";
+      var frameOnly = /^(tebal|jarak|sudut)$/.test(key);
+      r.disabled = none && frameOnly;
       var out = $("#o-" + key);
-      if (out) out.textContent = none && key !== "ukuran" ? "tanpa bingkai" : studio[key] + (key === "ukuran" ? "%" : " px");
+      if (out) out.textContent = none && frameOnly ? "tanpa bingkai" : studio[key] + (UNIT[key] || "");
     });
     var nn = $("#st-none-note"); if (nn) nn.hidden = !none;
     var ku = $("#st-kustom"); if (ku) ku.hidden = studio.layout !== "kustom";
@@ -1075,6 +1393,23 @@
     });
     var pick = $("#st-warna-own");
     if (pick && document.activeElement !== pick) pick.value = studio.warna || BK.FRAMES[studio.frame].paper || "#ffffff";
+    document.querySelectorAll("#st-walls [data-wall]").forEach(function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-wall") === studio.latar ? "true" : "false");
+    });
+    var hj = $("#st-hijau"); if (hj) hj.hidden = studio.potong !== "hijau";
+    var br = $("#st-bareng"); if (br) br.hidden = studio.layout !== "bareng";
+    var chg = $("#st-wall-change"); if (chg) chg.hidden = studio.latar !== "foto";
+    var guest = role === "guest";
+    [["kamu", guest ? "besarG" : "besarH"], ["dia", guest ? "besarH" : "besarG"]].forEach(function (x) {
+      var r = document.querySelector('[data-person="' + x[0] + '"]'); if (!r) return;
+      if (document.activeElement !== r) r.value = studio[x[1]];
+      var out = $("#o-besar-" + x[0]); if (out) out.textContent = studio[x[1]] + "%";
+    });
+    var kamuFront = (studio.depan === "G") === guest;
+    document.querySelectorAll("#st-depan [data-depan]").forEach(function (b) {
+      b.setAttribute("aria-pressed", (b.getAttribute("data-depan") === "kamu") === kamuFront ? "true" : "false");
+    });
+    paintCut();
     var note = $("#shoot-note");
     if (note) {
       var n = BK.plan(studio).shots;
@@ -1114,7 +1449,7 @@
         if (rx) {
           rx.parts.push(e.data);
           rx.got += e.data.byteLength || 0;
-          if (rx.size) {
+          if (rx.size && rx.kind === "shot") {
             setStatus("#session-status", "Menerima hasil foto… " +
               Math.min(100, Math.round((rx.got / rx.size) * 100)) + "%");
           }
@@ -1128,11 +1463,15 @@
       // a booth on yesterday's script only speaks these two
       if (m.t === "look" && LOOKS[m.v] && !peerStudio) setStudio({ look: m.v }, true);
       if (m.t === "layout" && m.v && !peerStudio) setStudio({ layout: m.v }, true);
-      if (m.t === "shot") {
-        rx = { size: m.size || 0, mime: m.mime || "image/jpeg", parts: [], got: 0 };
-        setStatus("#session-status", "Menerima hasil foto…");
+      if (m.t === "shot" || m.t === "wall") {
+        rx = { kind: m.t, size: m.size || 0, mime: m.mime || "image/jpeg", parts: [], got: 0, key: String(m.key || "") };
+        if (m.t === "shot") setStatus("#session-status", "Menerima hasil foto…");
       }
-      if (m.t === "shotdone" && rx) {
+      if (m.t === "walldone" && rx && rx.kind === "wall") {
+        if (/^[a-z0-9]{1,24}$/.test(rx.key)) useWall(new Blob(rx.parts, { type: rx.mime }), rx.key, false);
+        rx = null;
+      }
+      if (m.t === "shotdone" && rx && rx.kind === "shot") {
         var blob = new Blob(rx.parts, { type: rx.mime });
         lastBlob = blob; lastMime = rx.mime; lastCanvas = null; lastPairs = null;
         if (rxUrl) URL.revokeObjectURL(rxUrl);
@@ -1150,6 +1489,7 @@
       sendDC({ t: "studio", v: studio });
       sendDC({ t: "look", v: studio.look });
       if (OLD_LAYOUTS.test(studio.layout)) sendDC({ t: "layout", v: studio.layout });
+      sendWall();
       paintSync();
     };
     ch.onopen = hello;
@@ -1166,26 +1506,39 @@
      The frame can change after the shot, so a strip can be sent again; each
      sending has a number, and one that is overtaken stops mid-stream rather
      than interleaving its chunks with the newer one. */
+  /* One binary transfer at a time -- a strip and a wallpaper sent in the same
+     second must not interleave their chunks, because a chunk does not say
+     which picture it belongs to. A transfer that is overtaken (alive() turns
+     false) stops mid-stream; the next header resets the other side. */
+  var txQueue = Promise.resolve();
+  function sendBinary(head, buf, alive) {
+    txQueue = txQueue.then(function () {
+      return new Promise(function (done) {
+        if (!dcOpen() || !alive()) { done(); return; }
+        sendDC(head);
+        var off = 0;
+        (function pump() {
+          if (!dcOpen() || !alive()) { done(); return; }
+          while (off < buf.byteLength) {
+            // let the channel drain rather than burying it and losing the tail
+            if (dc.bufferedAmount > 512 * 1024) { setTimeout(pump, 50); return; }
+            try { dc.send(buf.slice(off, off + CHUNK)); } catch (e) { done(); return; }
+            off += CHUNK;
+          }
+          sendDC({ t: head.t + "done", gen: head.gen, key: head.key });
+          done();
+        })();
+      });
+    });
+  }
   var shareGen = 0;
   function shareShot(canvas) {
-    if (!dc || dc.readyState !== "open" || !canvas.toBlob) return;
+    if (!dcOpen() || !canvas.toBlob) return;
     var gen = ++shareGen;
     flat(canvas).toBlob(function (blob) {
       if (!blob || gen !== shareGen) return;
       blob.arrayBuffer().then(function (buf) {
-        if (gen !== shareGen) return;
-        sendDC({ t: "shot", size: buf.byteLength, mime: blob.type || "image/jpeg", gen: gen });
-        var off = 0;
-        (function pump() {
-          if (!dc || dc.readyState !== "open" || gen !== shareGen) return;
-          while (off < buf.byteLength) {
-            // let the channel drain rather than burying it and losing the tail
-            if (dc.bufferedAmount > 512 * 1024) { setTimeout(pump, 50); return; }
-            try { dc.send(buf.slice(off, off + CHUNK)); } catch (e) { return; }
-            off += CHUNK;
-          }
-          sendDC({ t: "shotdone", gen: gen });
-        })();
+        sendBinary({ t: "shot", size: buf.byteLength, mime: blob.type || "image/jpeg", gen: gen }, buf, function () { return gen === shareGen; });
       });
     }, "image/jpeg", 0.92);
   }
@@ -1194,7 +1547,7 @@
     clearTimeout(recT);
     recT = setTimeout(function () {
       if (!lastPairs) return;
-      fontsReady().then(function () {
+      fontsReady().then(function () { return ensureMasks(lastPairs); }).then(function () {
         if (!lastPairs) return;
         lastCanvas = compose(lastPairs); lastBlob = null; lastMime = "image/png";
         shareShot(lastCanvas);
@@ -1264,12 +1617,13 @@
           return wait(_lagMs).then(function () {
             pairs.push({ a: mine, b: grabVideo($("#remoteVideo"), false) });
             pvKick();
+            ensureMasks(pairs).then(pvKick);
           });
         }).then(function () {
           return (i < n - 1 ? wait(800) : Promise.resolve()).then(function () { return loop(i + 1); });
         });
       })(0);
-    }).then(function () {
+    }).then(function () { return ensureMasks(pairs); }).then(function () {
       lastPairs = pairs; shootPairs = null; shotIdx = -1;
       lastCanvas = compose(pairs);
       lastBlob = null; lastMime = "image/png";
@@ -1310,8 +1664,10 @@
     setStatus("#session-status", "Menyimpan ke album…");
     clearTimeout(recT);
     // always the frame that is on the screen right now
-    if (lastPairs) lastCanvas = compose(lastPairs);
-    uploadBlob(lastCanvas).then(function (blob) {
+    ensureMasks(lastPairs).then(function () {
+      if (lastPairs) lastCanvas = compose(lastPairs);
+      return uploadBlob(lastCanvas);
+    }).then(function (blob) {
       if (!blob) { if (b) b.disabled = false; return; }
       fetch("/api/album", { method: "POST", headers: { "Content-Type": blob.type || "image/png" }, body: blob })
         .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { r: r, j: j }; }); })
@@ -1419,11 +1775,13 @@
   function init() {
     setupMusic();
     buildStudio();
+    restoreWall();
     preloadFonts();
     paintPress();
     applyLookToPreview();
     paintStudio();
     mountStudio("s-lobby");
+    if (wantsCut() && studio.potong === "otomatis") loadCut();
     var resizeT = 0;
     window.addEventListener("resize", function () {
       clearTimeout(resizeT);
@@ -1451,14 +1809,16 @@
     });
     $("#download-btn").addEventListener("click", function () {
       // the shooter has the PNG original; the other one has the shared copy
-      var href, name = "photobox-" + stamp();
-      if (lastPairs) lastCanvas = compose(lastPairs);
-      if (lastCanvas) { href = lastCanvas.toDataURL("image/png"); name += ".png"; }
-      else if (lastBlob) { href = rxUrl; name += lastMime === "image/png" ? ".png" : ".jpg"; }
-      else return;
-      var a = document.createElement("a");
-      a.download = name; a.href = href;
-      document.body.appendChild(a); a.click(); a.remove();
+      ensureMasks(lastPairs).then(function () {
+        var href, name = "photobox-" + stamp();
+        if (lastPairs) lastCanvas = compose(lastPairs);
+        if (lastCanvas) { href = lastCanvas.toDataURL("image/png"); name += ".png"; }
+        else if (lastBlob) { href = rxUrl; name += lastMime === "image/png" ? ".png" : ".jpg"; }
+        else return;
+        var a = document.createElement("a");
+        a.download = name; a.href = href;
+        document.body.appendChild(a); a.click(); a.remove();
+      });
     });
     $("#save-album-btn").addEventListener("click", saveToAlbum);
     $("#open-album").addEventListener("click", showAlbum);
@@ -1526,10 +1886,15 @@
       pv: pv,
       result: function (pairs) {
         lastPairs = pairs; shotAt = new Date();
-        lastCanvas = compose(pairs); lastBlob = null;
-        pv.mode = "result"; pvKick(); resultUI(false);
-        return { w: lastCanvas.width, h: lastCanvas.height };
-      }
+        return ensureMasks(pairs).then(function () {
+          lastCanvas = compose(pairs); lastBlob = null;
+          pv.mode = "result"; pvKick(); resultUI(false);
+          var key = maskKey();
+          return { w: lastCanvas.width, h: lastCanvas.height, masked: !!(pairs[0].masks && pairs[0].masks["a" + key]) };
+        });
+      },
+      cut: CUT,
+      canvas: function () { return lastCanvas; }
     };
   }
 

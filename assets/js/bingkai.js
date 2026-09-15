@@ -26,6 +26,7 @@
 
   var LAYOUTS = [
     { id: "side", name: "Berdampingan", note: "1 jepretan" },
+    { id: "bareng", name: "Satu tempat", note: "berdua di satu latar · 1 jepretan" },
     { id: "stack", name: "Tumpuk", note: "1 jepretan" },
     { id: "grid", name: "Kotak 2×2", note: "2 jepretan" },
     { id: "strip", name: "Strip ×3", note: "3 jepretan" },
@@ -117,7 +118,11 @@
     layout: "side", n: 3, susun: "pasang", rasio: "4:3", tukar: false,
     frame: "sisia", tebal: 18, jarak: 14, sudut: 0, warna: "", hiasan: true, garis: true,
     teks: "Kamu ♥ Aku", posisi: "bawah", huruf: "tegas", ukuran: 100, tanggal: true, cap: true,
-    look: "asli", hitung: 3, at: 0
+    look: "asli", hitung: 3,
+    // the green screen: which wallpaper, how you are cut out, and where you stand in "Satu tempat"
+    latar: "asli", potong: "otomatis", peka: 45, tepi: 2,
+    besarH: 100, besarG: 100, jarakOrang: 45, depan: "G", wallKey: "",
+    at: 0
   };
 
   var DATE_SAMPLE = "17 September 2026  ·  17:17";
@@ -156,6 +161,15 @@
     o.cap = v.cap !== false;
     if (typeof v.look === "string" && /^[a-z]{2,12}$/.test(v.look)) o.look = v.look;
     o.hitung = [3, 5, 10].indexOf(Number(v.hitung)) >= 0 ? Number(v.hitung) : DEF.hitung;
+    if (typeof v.latar === "string" && /^[a-z][a-z0-9-]{1,19}$/.test(v.latar)) o.latar = v.latar;
+    if (v.potong === "otomatis" || v.potong === "hijau") o.potong = v.potong;
+    o.peka = int(v.peka, 5, 95, DEF.peka);
+    o.tepi = int(v.tepi, 0, 10, DEF.tepi);
+    o.besarH = int(v.besarH, 50, 160, DEF.besarH);
+    o.besarG = int(v.besarG, 50, 160, DEF.besarG);
+    o.jarakOrang = int(v.jarakOrang, 0, 100, DEF.jarakOrang);
+    if (v.depan === "H" || v.depan === "G") o.depan = v.depan;
+    if (typeof v.wallKey === "string" && /^[a-z0-9]{1,24}$/.test(v.wallKey)) o.wallKey = v.wallKey;
     o.at = isFinite(Number(v.at)) && Number(v.at) > 0 ? Number(v.at) : 0;
     return o;
   }
@@ -265,10 +279,17 @@
     var sw = function (w) { return o.tukar ? (w === "a" ? "b" : "a") : w; };
     var cells = [], kind = "grid", seam = 0, W, H, y0, bd;
 
-    if (o.layout === "belah" || o.layout === "jendela") {
+    if (o.layout === "belah" || o.layout === "jendela" || o.layout === "bareng") {
       var cw = px(900 * k), ch = px(cw * r);
       W = 2 * B + cw; bd = bands(o, W); y0 = bd.top ? Math.max(bd.top, B) : B;
-      if (o.layout === "belah") {
+      if (o.layout === "bareng") {
+        /* TOGETHER IN ONE PLACE: one frame, one wallpaper, and both of you cut
+           out of your own rooms and standing in it. Two cells on the same
+           rectangle; the first draws the whole scene. `pos` is the side. */
+        kind = "bareng";
+        cells.push({ x: B, y: y0, w: cw, h: ch, shot: 0, who: "a", scene: "lead", pos: o.tukar ? 1 : -1 });
+        cells.push({ x: B, y: y0, w: cw, h: ch, shot: 0, who: "b", scene: "follow", pos: o.tukar ? -1 : 1 });
+      } else if (o.layout === "belah") {
         kind = "belah";
         seam = none ? 0 : Math.max(3, Math.round(G * 0.6));
         cells.push({ x: B, y: y0, w: cw, h: ch, shot: 0, who: sw("a"), part: "kiri" });
@@ -464,7 +485,7 @@
   function clipMargins(g, p) {
     g.beginPath(); g.rect(0, 0, p.W, p.H);
     p.cells.forEach(function (c) {
-      if (c.inset || c.part === "kanan") return;
+      if (c.inset || c.part === "kanan" || c.scene === "follow") return;
       if (c.card) {
         var q = corners(c);
         g.moveTo(q[0][0], q[0][1]); g.lineTo(q[1][0], q[1][1]); g.lineTo(q[2][0], q[2][1]); g.lineTo(q[3][0], q[3][1]); g.closePath();
@@ -713,7 +734,121 @@
       if (stamp) { metaFont(g, meta * 0.85, pal.mono); g.fillStyle = soft; g.fillText(stamp, cx, lipY + lipH * (date ? 0.68 : 0.5)); }
     }
   }
+  /* A layer the size of a rectangle of the plan, in real pixels (env.scale),
+     with plan coordinates still working inside it. The booth supplies layers
+     (env.layer), so this file never makes a canvas of its own. */
+  function layerFor(env, x, y, w, h) {
+    var sc = env.scale || 1, lw = Math.max(1, Math.ceil(w * sc)), lh = Math.max(1, Math.ceil(h * sc));
+    var L = env.layer(lw, lh), lg = L.getContext("2d");
+    lg.setTransform(sc, 0, 0, sc, -x * sc, -y * sc);
+    return { c: L, g: lg, sc: sc };
+  }
+  function frameAt(g, img, box, flip) {
+    if (flip) { g.save(); g.translate(2 * box.x + box.w, 0); g.scale(-1, 1); }
+    try { g.drawImage(img, box.x, box.y, box.w, box.h); } catch (e) {}
+    if (flip) g.restore();
+  }
+  function coverBox(src, x, y, w, h) {
+    var k = Math.max(w / src.w, h / src.h);
+    return { x: x + (w - src.w * k) / 2, y: y + (h - src.h * k) / 2, w: src.w * k, h: src.h * k };
+  }
+  /* One of you, cut out: the camera frame, then its mask with destination-in,
+     in a layer of its own so the cut never bites into the wallpaper. The mask
+     covers the whole frame, so it is drawn to the same box and the same
+     mirror. `tepi` softens the edge. */
+  function cutPerson(env, box, src, o, x, y, w, h) {
+    var P = layerFor(env, x, y, w, h), pg = P.g;
+    frameAt(pg, src.img, box, src.flip);
+    pg.globalCompositeOperation = "destination-in";
+    if (o.tepi) { try { pg.filter = "blur(" + (o.tepi * 0.5 * P.sc).toFixed(2) + "px)"; } catch (e) {} }
+    frameAt(pg, src.mask, box, src.flip);
+    try { pg.filter = "none"; } catch (e) {}
+    pg.globalCompositeOperation = "source-over";
+    return P.c;
+  }
+  // a layer is laid on the page through the look, so the room and the two of you grade together
+  function lay(g, L, x, y, w, h, env) {
+    try { g.filter = env.filter && env.filter !== "none" ? env.filter : "none"; } catch (e) {}
+    g.drawImage(L, x, y, w, h);
+    try { g.filter = "none"; } catch (e) {}
+  }
+  function paste(dst, L) {
+    dst.save(); dst.setTransform(1, 0, 0, 1, 0, 0); dst.drawImage(L, 0, 0); dst.restore();
+  }
+  // a picture with a wallpaper behind it (every layout but "Satu tempat")
+  function cutout(g, src, x, y, w, h, o, env) {
+    if (o.latar === "asli" || !src.mask || !env.layer || !env.wall) return false;
+    var S = layerFor(env, x, y, w, h);
+    env.wall(S.g, x, y, w, h);
+    paste(S.g, cutPerson(env, coverBox(src, x, y, w, h), src, o, x, y, w, h));
+    lay(g, S.c, x, y, w, h, env);
+    return true;
+  }
+  function silhouette(g, box, env, who) {
+    var cx = box.x + box.w / 2, r = box.h * 0.15;
+    g.fillStyle = "rgba(251,247,240,0.8)";
+    g.beginPath(); g.arc(cx, box.y + box.h * 0.38, r, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.arc(cx, box.y + box.h + r * 0.3, box.h * 0.36, Math.PI, 0); g.closePath(); g.fill();
+    if (!env.thumb && box.h > 90) {
+      metaFont(g, Math.max(10, Math.min(20, box.h * 0.06)), "'IBM Plex Mono', monospace");
+      g.fillStyle = "#1B1A15"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText(who === "a" ? "KAMU" : "DIA", cx, box.y + box.h * 0.8);
+    }
+  }
+  // no camera yet, but a wallpaper chosen: show the room, with a place for you in it
+  function wallPlaceholder(g, c, o, env, x, y, w, h) {
+    if (o.latar === "asli" || !env.layer || !env.wall) return false;
+    var S = layerFor(env, x, y, w, h);
+    env.wall(S.g, x, y, w, h);
+    var bh = h * 0.86, bw = bh * 4 / 3;
+    silhouette(S.g, { x: x + (w - bw) / 2, y: y + h - bh, w: bw, h: bh }, env, c.who);
+    lay(g, S.c, x, y, w, h, env);
+    return true;
+  }
+  /* "Satu tempat". The wallpaper, then each of you cut out and standing on
+     the bottom edge: sized by your own slider (besarH is the host's, besarG
+     the guest's -- `a` is always this screen's own camera, so sizes follow
+     the person, not the side), spaced by jarakOrang, the one in front drawn
+     last. A camera not yet cut stands whole in its half, so nobody vanishes
+     while the cutter warms up. */
+  function drawScene(g, p, c, o, pal, env) {
+    var cells = p.cells.filter(function (k) { return k.scene; });
+    var srcs = cells.map(function (k) { return env.src ? env.src(k) : null; });
+    if (!env.layer || !env.wall) {
+      cells.forEach(function (k, i) {
+        var hx = k.pos < 0 ? c.x : c.x + c.w / 2;
+        if (!(srcs[i] && cover(g, srcs[i], hx, c.y, c.w / 2, c.h, env.filter))) placeholder(g, k, pal, env, hx, c.y, c.w / 2, c.h, 1);
+      });
+      return;
+    }
+    var guestIsA = env.role === "guest";
+    var front = (o.depan === "G") === guestIsA ? "a" : "b";
+    var S = layerFor(env, c.x, c.y, c.w, c.h);
+    env.wall(S.g, c.x, c.y, c.w, c.h);
+    var order = cells.map(function (k, i) { return i; }).sort(function (i, j) {
+      return (cells[i].who === front ? 1 : 0) - (cells[j].who === front ? 1 : 0);
+    });
+    var d = c.w * (0.16 + 0.5 * o.jarakOrang / 100);
+    order.forEach(function (i) {
+      var k = cells[i], src = srcs[i];
+      var guest = (k.who === "a") === guestIsA;
+      var hh = c.h * 0.9 * (guest ? o.besarG : o.besarH) / 100;
+      var ww = hh * (src ? src.w / src.h : 4 / 3);
+      var cx = c.x + c.w / 2 + k.pos * d / 2;
+      var box = { x: cx - ww / 2, y: c.y + c.h - hh, w: ww, h: hh };
+      if (src && src.mask) paste(S.g, cutPerson(env, box, src, o, c.x, c.y, c.w, c.h));
+      else if (src) {
+        var hx = k.pos < 0 ? c.x : c.x + c.w / 2;
+        S.g.save(); S.g.beginPath(); S.g.rect(hx, c.y, c.w / 2, c.h); S.g.clip();
+        frameAt(S.g, src.img, coverBox(src, hx, c.y, c.w / 2, c.h), src.flip);
+        S.g.restore();
+      } else silhouette(S.g, box, env, k.who);
+    });
+    lay(g, S.c, c.x, c.y, c.w, c.h, env);
+  }
+
   function drawCell(g, p, c, o, pal, env) {
+    if (c.scene === "follow") return;
     var none = o.frame === "none";
     var R = none ? 0 : Math.min(o.sudut, c.w / 2, c.h / 2);
     var src = env.src ? env.src(c) : null;
@@ -749,7 +884,10 @@
     } else {
       rrect(g, c.x, c.y, c.w, c.h, R); g.save(); g.clip();
     }
-    if (!(src && cover(g, src, bx, c.y, bw, c.h, env.filter))) placeholder(g, c, pal, env, bx, c.y, bw, c.h, p.shots);
+    if (c.scene) drawScene(g, p, c, o, pal, env);
+    else if (src) {
+      if (!cutout(g, src, bx, c.y, bw, c.h, o, env) && !cover(g, src, bx, c.y, bw, c.h, env.filter)) placeholder(g, c, pal, env, bx, c.y, bw, c.h, p.shots);
+    } else if (!wallPlaceholder(g, c, o, env, bx, c.y, bw, c.h)) placeholder(g, c, pal, env, bx, c.y, bw, c.h, p.shots);
     g.restore();
     if (o.garis && pal.line && !c.part && !c.card) {
       g.strokeStyle = pal.line; g.lineWidth = Math.max(1.5, p.W / 560);
@@ -765,7 +903,8 @@
 
   /* g is already scaled so that one unit of the plan is one unit here; the
      booth draws the preview smaller by scaling the context, never the plan.
-     env: src(cell) -> {img,w,h,flip} | null, filter, date, press, hot, thumb. */
+     env: src(cell) -> {img,w,h,flip,mask} | null, filter, date, press, hot, thumb,
+     and for wallpapers: wall(g,x,y,w,h), layer(w,h) -> canvas, scale, role. */
   function draw(g, p, v, env) {
     var o = norm(v), pal = palette(o), F = FRAMES[o.frame];
     env = env || {};

@@ -25,3 +25,18 @@ sizes exactly.
 - Local QA: `CI=true npx wrangler dev --local --persist-to <folder outside this repo>`.
 - Never save test strips to the live album; the 5th's wall and the 6th's Bilik Foto show every
   one.
+
+## Green screen (15 Sep)
+
+- Wallpapers and the mask arithmetic are `assets/js/latar.js`; run `node latar.test.mjs`.
+  `bingkai.js` builds the wallpaper, the cut-out and the look in a layer (`env.layer`,
+  `env.wall`).
+- The "Satu tempat" layout (`bareng`) stands both of you in one scene. Sizes are per person
+  (`besarH`, `besarG`), not per side.
+- The cutter is MediaPipe's selfie segmenter, vendored in `assets/vendor/mediapipe` (never a CDN).
+  It loads only when a wallpaper is chosen, and "Layar hijau beneran" keys real green instead.
+- Never put `autoplay` back on the booth's `<video>`s. Chrome pauses muted autoplay video that is
+  scrolled out of view, and the preview, the cut-out and the shutter read from it;
+  `keepPlaying()` starts them from script.
+- A wallpaper photo of your own travels to the other booth as `{t:"wall"}` chunks, in the same
+  queue as strips.

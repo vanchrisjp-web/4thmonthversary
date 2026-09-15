@@ -15,8 +15,8 @@ const J = (v) => JSON.parse(JSON.stringify(v));
 
 /* A 2D context that records what is asked of it and answers measureText the
    way a real one roughly would, so draw() runs end to end without a browser. */
-function fakeContext() {
-  const calls = [];
+function fakeContext(shared) {
+  const calls = shared || [];
   const state = { font: "400 10px x", letterSpacing: "0px" };
   const ctx = new Proxy(state, {
     get(target, key) {
@@ -24,7 +24,7 @@ function fakeContext() {
       if (key === "measureText") return (s) => ({ width: String(s).length * (parseFloat(/(\d+(\.\d+)?)px/.exec(target.font)?.[1] || "10")) * 0.55 });
       if (key === "createLinearGradient") return () => ({ addColorStop() {} });
       if (key in target) return target[key];
-      return (...args) => { calls.push([key, ...args.map((a) => (typeof a === "number" ? Math.round(a * 100) / 100 : typeof a === "string" ? a : "·"))]); };
+      return (...args) => { calls.push([key, ...args.map((a) => (typeof a === "number" ? Math.round(a * 100) / 100 : typeof a === "string" ? a : a && a.name ? a.name : "·"))]); };
     },
     set(target, key, value) { target[key] = value; calls.push(["set:" + String(key), value]); return true; }
   });
@@ -257,6 +257,105 @@ t("the mirror is flipped only for your own picture", () => {
   const g = fakeContext();
   B.draw(g, B.plan(o), o, { src: (c) => (c.who === "a" ? { ...pic, flip: true } : pic), date: "", press: "" });
   assert.equal(g.calls.filter((c) => c[0] === "scale" && c[1] === -1).length, 1);
+});
+
+/* ---- the green screen: "Satu tempat" and wallpapers ---- */
+const layerFactory = (log) => (w, h) => ({ name: "layer", width: w, height: h, getContext: () => fakeContext(log) });
+const face = (name, maskName) => ({ img: { name }, w: 640, h: 480, mask: maskName ? { name: maskName } : undefined });
+const twoFaces = (c) => (c.who === "a" ? face("imgA", "maskA") : face("imgB", "maskB"));
+
+t("together in one place is one frame, with both of you in it", () => {
+  const p = B.plan({ layout: "bareng" });
+  assert.equal(p.shots, 1);
+  assert.equal(p.cells.length, 2);
+  assert.equal(p.cells[0].x, p.cells[1].x);
+  assert.equal(p.cells[0].w, p.cells[1].w);
+  assert.equal(p.cells[0].h, p.cells[1].h);
+  assert.deepEqual(J(p.cells.map((c) => c.pos)), [-1, 1]);
+  assert.deepEqual(J(B.plan({ layout: "bareng", tukar: true }).cells.map((c) => c.pos)), [1, -1]);
+});
+
+t("the scene is the wallpaper, both of you cut out, then the look over all of it", () => {
+  const o = { ...B.defaults("006"), layout: "bareng", latar: "ladang", look: "dingin" };
+  const main = fakeContext(), layers = [], walls = [];
+  B.draw(main, B.plan(o), o, { src: twoFaces, filter: "saturate(1.12) hue-rotate(-12deg)", layer: layerFactory(layers),
+    wall: (g, x, y, w, h) => walls.push([w, h]), scale: 1, role: "host", date: "x", press: "YS-006" });
+  assert.equal(walls.length, 1);
+  assert.equal(layers.filter((c) => c[0] === "set:globalCompositeOperation" && c[1] === "destination-in").length, 2, "each of you is cut by a mask");
+  const i = main.calls.findIndex((c) => c[0] === "drawImage" && c[1] === "layer");
+  assert.ok(i > 0, "the scene is laid on the strip");
+  const f = main.calls.slice(0, i).reverse().find((c) => c[0] === "set:filter");
+  assert.equal(f[1], "saturate(1.12) hue-rotate(-12deg)", "the look is kept, over the whole scene");
+});
+
+t("who stands in front, and how big, follows the person and not the screen", () => {
+  const o = { layout: "bareng", latar: "studio", depan: "G", besarG: 150, besarH: 80 };
+  const run = (role) => {
+    const log = [];
+    B.draw(fakeContext(), B.plan(o), o, { src: twoFaces, layer: layerFactory(log), wall: () => {}, scale: 1, role, date: "", press: "" });
+    return log;
+  };
+  const last = (log, name) => log.reduce((m, c, i) => (c[0] === "drawImage" && c[1] === name ? i : m), -1);
+  const heightOf = (log, name) => log.find((c) => c[0] === "drawImage" && c[1] === name)[5];
+  const host = run("host"), guest = run("guest");
+  assert.ok(last(host, "maskB") > last(host, "maskA"), "on the host's screen the guest is b, in front");
+  assert.ok(last(guest, "maskA") > last(guest, "maskB"), "on the guest's screen the guest is a, in front");
+  assert.ok(heightOf(host, "imgB") > heightOf(host, "imgA"));
+  assert.ok(heightOf(guest, "imgA") > heightOf(guest, "imgB"));
+});
+
+t("a camera not cut yet still stands in the scene, whole, in its half", () => {
+  const o = { layout: "bareng", latar: "kota" };
+  const log = [];
+  B.draw(fakeContext(), B.plan(o), o, { src: (c) => face(c.who === "a" ? "imgA" : "imgB"), layer: layerFactory(log), wall: () => {}, scale: 1, date: "", press: "" });
+  const drawn = log.filter((c) => c[0] === "drawImage").map((c) => c[1]);
+  assert.ok(drawn.includes("imgA") && drawn.includes("imgB"));
+  assert.ok(!log.some((c) => c[1] === "destination-in"));
+});
+
+t("any layout can stand on a wallpaper; with Asli it is the camera as it was", () => {
+  let walls = 0;
+  const walled = fakeContext();
+  const o = { layout: "strip", latar: "sakura" };
+  B.draw(walled, B.plan(o), o, { src: twoFaces, layer: layerFactory([]), wall: () => walls++, scale: 0.5, date: "", press: "" });
+  assert.equal(walls, 6);
+  assert.equal(walled.calls.filter((c) => c[0] === "drawImage" && c[1] === "layer").length, 6);
+  const plain = fakeContext();
+  B.draw(plain, B.plan({ layout: "strip" }), { layout: "strip" }, { src: twoFaces, layer: layerFactory([]), wall: () => walls++, scale: 1, date: "", press: "" });
+  assert.equal(plain.calls.filter((c) => c[0] === "drawImage" && c[1] === "imgA").length, 3);
+  assert.equal(walls, 6, "no wallpaper asked for");
+});
+
+t("without a layer to build in, the scene falls back to each of you in your half", () => {
+  const o = { layout: "bareng", latar: "ladang" };
+  const g = fakeContext();
+  B.draw(g, B.plan(o), o, { src: twoFaces, date: "", press: "" });
+  const drawn = g.calls.filter((c) => c[0] === "drawImage").map((c) => c[1]).sort();
+  assert.deepEqual(drawn, ["imgA", "imgB"]);
+});
+
+t("a chosen wallpaper shows on the cards before any camera is on", () => {
+  let walls = 0;
+  const o = { layout: "side", latar: "kebun" };
+  B.draw(fakeContext(), B.plan(o), o, { thumb: true, layer: layerFactory([]), wall: () => walls++, scale: 0.1, press: "" });
+  assert.equal(walls, 2);
+});
+
+t("the green-screen options are clamped", () => {
+  const o = B.norm({ latar: "Kota!", potong: "x", peka: 200, tepi: -1, besarH: 10, besarG: 999, jarakOrang: "70", depan: "Z", wallKey: "ok123" });
+  assert.equal(o.latar, "asli");
+  assert.equal(o.potong, "otomatis");
+  assert.equal(o.peka, 95);
+  assert.equal(o.tepi, 0);
+  assert.equal(o.besarH, 50);
+  assert.equal(o.besarG, 160);
+  assert.equal(o.jarakOrang, 70);
+  assert.equal(o.depan, "G");
+  assert.equal(o.wallKey, "ok123");
+  const k = B.norm({ latar: "kota", potong: "hijau", wallKey: "BAD KEY" });
+  assert.equal(k.latar, "kota");
+  assert.equal(k.potong, "hijau");
+  assert.equal(k.wallKey, "");
 });
 
 console.log(n + " tests passed");

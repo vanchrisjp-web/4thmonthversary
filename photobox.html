@@ -138,8 +138,8 @@
     @keyframes blink { 50% { opacity:.2 } }
 
     .st-panel { min-width:0; border:1px solid var(--line2); }
-    .st-tabs { display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--line2); }
-    .st-tabs button { font-family:var(--mono); text-transform:uppercase; letter-spacing:.08em; font-size:.66rem;
+    .st-tabs { display:grid; grid-template-columns:repeat(5,1fr); border-bottom:1px solid var(--line2); }
+    .st-tabs button { font-family:var(--mono); text-transform:uppercase; letter-spacing:.06em; font-size:.6rem;
       padding:.8em .4em; min-height:48px; border-right:1px solid var(--line); color:var(--grey); text-align:center; }
     .st-tabs button:last-child { border-right:0; }
     .st-tabs button span { display:block; font-size:.58rem; opacity:.7; }
@@ -177,6 +177,7 @@
     .st-text:focus { outline:none; border-color:var(--pink); }
     .st-fonts .chip { text-transform:none; letter-spacing:0; font-size:.95rem; }
     .st-note { color:var(--grey); font-size:.8rem; }
+    .st-note.err { color:var(--pink); }
     .st-foot { display:flex; justify-content:space-between; gap:.6rem; flex-wrap:wrap; align-items:center; padding:.8rem 1rem; border-top:1px solid var(--line); }
 
     .result { margin-top:.9rem; display:none; }
@@ -255,7 +256,7 @@
           <p class="status"><span id="wait-status" class="dotpulse">Menunggu pasangan bergabung</span></p>
         </div>
         <div class="stage">
-          <div class="feed me"><video id="selfPreview" autoplay playsinline muted></video><span class="who">Kamu</span></div>
+          <div class="feed me"><video id="selfPreview" playsinline muted></video><span class="who">Kamu</span></div>
         </div>
       </div>
       <div class="controls" style="margin:1rem 0 1.4rem">
@@ -270,8 +271,8 @@
     <section class="screen" id="s-session">
       <div class="session-top">
         <div class="stage">
-          <div class="feed me"><video id="selfVideo" autoplay playsinline muted></video><span class="who">Kamu</span></div>
-          <div class="feed"><video id="remoteVideo" autoplay playsinline></video><span class="who">Dia</span>
+          <div class="feed me"><video id="selfVideo" playsinline muted></video><span class="who">Kamu</span></div>
+          <div class="feed"><video id="remoteVideo" playsinline muted></video><span class="who">Dia</span>
             <div class="off" id="remote-off">menyambung…</div></div>
         </div>
         <div class="controls">
@@ -315,9 +316,10 @@
       <div class="st-panel">
         <div class="st-tabs" role="tablist" aria-label="Atur strip">
           <button type="button" role="tab" data-tab="letak" aria-selected="true"><span>01</span>Tata letak</button>
-          <button type="button" role="tab" data-tab="bingkai" aria-selected="false"><span>02</span>Bingkai</button>
-          <button type="button" role="tab" data-tab="tulisan" aria-selected="false"><span>03</span>Tulisan</button>
-          <button type="button" role="tab" data-tab="gaya" aria-selected="false"><span>04</span>Gaya</button>
+          <button type="button" role="tab" data-tab="latar" aria-selected="false"><span>02</span>Latar</button>
+          <button type="button" role="tab" data-tab="bingkai" aria-selected="false"><span>03</span>Bingkai</button>
+          <button type="button" role="tab" data-tab="tulisan" aria-selected="false"><span>04</span>Tulisan</button>
+          <button type="button" role="tab" data-tab="gaya" aria-selected="false"><span>05</span>Gaya</button>
         </div>
 
         <div class="st-pane" data-pane="letak" role="tabpanel">
@@ -334,6 +336,33 @@
           <div class="st-toggles">
             <button class="chip" type="button" data-flag="tukar" aria-pressed="false">⇄ Tukar kamu dan dia</button>
           </div>
+        </div>
+
+        <div class="st-pane" data-pane="latar" role="tabpanel" hidden>
+          <p class="st-note" id="st-cut-state"></p>
+          <div class="st-cards" id="st-walls"></div>
+          <input type="file" id="st-wall-file" accept="image/*" hidden>
+          <div class="st-toggles"><button class="chip" type="button" id="st-wall-change" hidden>Ganti foto latar</button></div>
+          <span class="st-lab">Cara memotong</span>
+          <div class="st-chips" data-key="potong"></div>
+          <div class="st-group" id="st-hijau" hidden>
+            <label class="st-lab" for="st-peka">Kepekaan hijau <output id="o-peka"></output></label>
+            <input class="st-range" id="st-peka" type="range" min="5" max="95" step="1" data-key="peka">
+          </div>
+          <label class="st-lab" for="st-tepi">Kelembutan tepi <output id="o-tepi"></output></label>
+          <input class="st-range" id="st-tepi" type="range" min="0" max="10" step="1" data-key="tepi">
+          <div class="st-group" id="st-bareng" hidden>
+            <span class="st-lab">Satu tempat</span>
+            <label class="st-lab" for="st-besar-kamu">Besar kamu <output id="o-besar-kamu"></output></label>
+            <input class="st-range" id="st-besar-kamu" type="range" min="50" max="160" step="5" data-person="kamu">
+            <label class="st-lab" for="st-besar-dia">Besar dia <output id="o-besar-dia"></output></label>
+            <input class="st-range" id="st-besar-dia" type="range" min="50" max="160" step="5" data-person="dia">
+            <label class="st-lab" for="st-jarak-orang">Jarak kalian <output id="o-jarakOrang"></output></label>
+            <input class="st-range" id="st-jarak-orang" type="range" min="0" max="100" step="1" data-key="jarakOrang">
+            <span class="st-lab">Yang di depan</span>
+            <div class="st-chips" id="st-depan"></div>
+          </div>
+          <p class="st-note">Warna foto di tab Gaya (Dingin, Hangat, dan lainnya) tetap berlaku, ke latar dan ke kalian sekaligus.</p>
         </div>
 
         <div class="st-pane" data-pane="bingkai" role="tabpanel" hidden>
@@ -390,6 +419,7 @@
   <audio id="pb-song" loop preload="auto"></audio>
   <button class="music-toggle off" id="music-toggle" type="button" aria-label="Putar musik" title="Musik">♪</button>
 
+  <script src="assets/js/latar.js"></script>
   <script src="assets/js/bingkai.js"></script>
   <script src="assets/js/photobox.js"></script>
 </body>
