@@ -9,7 +9,18 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2312100E'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='%23FF4A7D' stroke-width='2.5'/%3E%3Ccircle cx='16' cy='16' r='2.5' fill='%23FF4A7D'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap">
+  <!-- the booth's own three faces, then the five a caption can be set in -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&family=Mona+Sans:wdth,wght@75..125,200..900&family=IBM+Plex+Mono:wght@400;600&family=Caveat:wght@600;700&family=Fraunces:ital,wght@1,500&display=swap">
+  <script>
+    /* The pressing you walked in from dresses the booth before first paint
+       (photobox.js reads the same parameter to stamp and frame the strip). */
+    (function () {
+      try {
+        var q = new URLSearchParams(location.search).get("press") || "";
+        if (/^[0-9]{1,3}$/.test(q)) document.documentElement.setAttribute("data-press", ("00" + q).slice(-3));
+      } catch (e) {}
+    })();
+  </script>
   <style>
     :root {
       --ink:#12100E; --paper:#F2EDE3; --pink:#FF4A7D; --blue:#1C4FD8; --grey:#9A958C;
@@ -18,6 +29,10 @@
       --disp:"Archivo",system-ui,sans-serif;
       --ease:cubic-bezier(.4,0,.2,1); --spring:cubic-bezier(.34,1.56,.64,1);
     }
+    /* YS-006 walks in from the field: its moss-black ground and a rust that
+       reads on it. Everything else about the booth stays Side A's. */
+    html[data-press="006"] { --ink:#15160F; --paper:#EDE8DC; --pink:#E58A5F; --grey:#A7A08E;
+      --line: rgba(237,232,220,0.15); --line2: rgba(237,232,220,0.32); }
     * { box-sizing:border-box; margin:0; }
     body { background:var(--ink); color:var(--paper); font-family:var(--body); line-height:1.5;
       -webkit-font-smoothing:antialiased; min-height:100svh; padding:clamp(1rem,4vw,2.5rem);
@@ -33,7 +48,10 @@
     .brand { font-family:var(--disp); font-weight:800; text-transform:uppercase; letter-spacing:-0.01em;
       font-size:clamp(1.5rem,1rem+3vw,2.6rem); line-height:0.9; }
     .brand .hh { color:var(--pink); }
-    .wrap { max-width:64rem; margin:0 auto; }
+    /* room for the fixed way-back button, which now says where you came from */
+    header.top { padding-right:13rem; }
+    @media (max-width:640px) { header.top { padding-right:0; padding-top:3.4rem; } }
+    .wrap { max-width:76rem; margin:0 auto; }
 
     .btn { font-family:var(--mono); text-transform:uppercase; letter-spacing:0.1em; font-size:0.8rem;
       border:1px solid var(--line2); padding:0.85em 1.2em; min-height:46px; display:inline-flex;
@@ -62,6 +80,7 @@
     .field { flex:1; min-width:0; background:rgba(242,237,227,0.05); border:1px solid var(--line2);
       color:var(--paper); padding:.7em .8em; min-height:46px; font-family:var(--mono); letter-spacing:.14em; text-transform:uppercase; }
     .field::placeholder { color:var(--grey); letter-spacing:.1em; }
+    .lobby-acts { display:flex; gap:.6rem; flex-wrap:wrap; }
 
     /* code / waiting */
     .code { font-family:var(--disp); font-weight:800; font-size:clamp(2.6rem,1.5rem+7vw,5rem); letter-spacing:.06em;
@@ -70,34 +89,30 @@
     .sharebox input { flex:1; min-width:12ch; background:none; border:none; color:var(--paper); font-family:var(--mono); font-size:.8rem; }
     .dotpulse::after { content:"…"; animation:dots 1.4s steps(4,end) infinite; }
     @keyframes dots { 0%{content:""} 25%{content:"."} 50%{content:".."} 75%{content:"..."} }
+    .wait-top { display:flex; flex-wrap:wrap; gap:1rem 1.6rem; align-items:flex-end; }
+    .wait-top .stage { margin:0; width:min(100%, 15rem); grid-template-columns:1fr; }
+    .wait-top .wait-code-box { flex:1 1 20rem; min-width:0; }
 
     /* session */
-    .stage { display:grid; gap:.9rem; grid-template-columns:1fr 1fr; margin:1rem 0 1.2rem; }
-    @media (max-width:640px){ .stage { grid-template-columns:1fr; } }
+    .stage { display:grid; gap:.6rem; grid-template-columns:1fr 1fr; margin:0 0 1rem; }
     .feed { position:relative; aspect-ratio:4/3; background:#0c0b09; border:1px solid var(--line2); overflow:hidden; }
     .feed video { width:100%; height:100%; object-fit:cover; }
     .feed.me video { transform:scaleX(-1); }
-    .feed .who { position:absolute; left:.5rem; bottom:.5rem; z-index:2; background:rgba(18,16,14,.7);
-      padding:.2em .6em; font-family:var(--mono); font-size:.62rem; letter-spacing:.16em; text-transform:uppercase; }
-    .feed .off { position:absolute; inset:0; display:grid; place-items:center; color:var(--grey); font-family:var(--mono); font-size:.72rem; }
-
-    /* two labelled rows -- the look, then the frame -- with the shutter last */
-    .controls { display:grid; grid-template-columns:auto minmax(0,1fr); gap:.5rem .7rem; align-items:center; }
-    .ctl-lab { font:600 10px/1 var(--mono,ui-monospace,monospace); letter-spacing:.18em; text-transform:uppercase; opacity:.6; }
-    .layouts { display:flex; gap:.4rem; flex-wrap:wrap; }
-    .looks { display:flex; gap:.4rem; flex-wrap:wrap; }
-    .controls > .btn { grid-column:2; justify-self:start; margin-top:.2rem; }
-    @media (max-width:520px) {
-      .controls { grid-template-columns:1fr; gap:.3rem; }
-      .ctl-lab { margin-top:.4rem; }
-      .controls > .btn { grid-column:1; }
-    }
-    .looks .chip[aria-pressed="true"] { background:var(--riso-pink); color:var(--paper); border-color:var(--riso-pink); }
-    /* the preview carries the chosen look, so the pose matches the print */
+    .feed .who { position:absolute; left:.4rem; bottom:.4rem; z-index:2; background:rgba(18,16,14,.7);
+      padding:.2em .6em; font-family:var(--mono); font-size:.6rem; letter-spacing:.16em; text-transform:uppercase; }
+    .feed .off { position:absolute; inset:0; display:grid; place-items:center; color:var(--grey); font-family:var(--mono); font-size:.7rem; text-align:center; padding:.5rem; }
     .feed video { transition: filter .25s ease; }
-    .chip { font-family:var(--mono); text-transform:uppercase; letter-spacing:.08em; font-size:.72rem;
-      border:1px solid var(--line2); padding:.5em .8em; min-height:40px; display:inline-flex; align-items:center; }
+    .session-top { display:grid; gap:.8rem 1.2rem; grid-template-columns:minmax(0, 22rem) minmax(0,1fr); align-items:end; margin-bottom:1rem; }
+    .session-top .stage { margin:0; }
+    .controls { display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; }
+    .shoot-note { flex-basis:100%; }
+    @media (max-width:720px) { .session-top { grid-template-columns:1fr; } }
+
+    .chip { font-family:var(--mono); text-transform:uppercase; letter-spacing:.08em; font-size:.7rem;
+      border:1px solid var(--line2); padding:.45em .75em; min-height:38px; display:inline-flex; align-items:center; gap:.4em; }
+    .chip:hover { border-color:var(--pink); }
     .chip[aria-pressed="true"] { background:var(--paper); color:var(--ink); border-color:var(--paper); }
+    .chip[disabled] { opacity:.4; pointer-events:none; }
 
     .count { position:fixed; inset:0; z-index:50; display:none; place-items:center; background:rgba(18,16,14,.55); }
     .count.on { display:grid; }
@@ -105,13 +120,71 @@
       text-shadow:.04em .02em 0 var(--pink), -.04em -.02em 0 var(--blue); animation:pop .9s var(--ease); }
     @keyframes pop { from{ transform:scale(.4); opacity:0 } 40%{ transform:scale(1); opacity:1 } to{ opacity:.85 } }
 
-    .result { margin-top:1.2rem; display:none; }
+    /* ---- STUDIO: the strip as it will print, and everything that shapes it.
+       One element, carried between the lobby, the waiting room and the session
+       (photobox.js mountStudio), so what you set while waiting is what you shoot. */
+    .studio-slot[hidden] { display:none; }
+    .studio { display:grid; gap:1.2rem 1.6rem; grid-template-columns:minmax(0,1.1fr) minmax(19rem,1fr); align-items:start; }
+    @media (max-width:880px) { .studio { grid-template-columns:1fr; } }
+    .st-view { position:sticky; top:1rem; min-width:0; }
+    @media (max-width:880px) { .st-view { position:static; } }
+    .st-canvasbox { display:grid; place-items:center; min-height:14rem; padding:clamp(.8rem,2.4vw,1.6rem);
+      border:1px solid var(--line); background:
+        radial-gradient(120% 90% at 50% 0%, rgba(242,237,227,0.07), rgba(242,237,227,0) 70%),
+        repeating-linear-gradient(45deg, rgba(242,237,227,0.025) 0 10px, rgba(0,0,0,0) 10px 20px); }
+    .st-canvasbox canvas { display:block; max-width:100%; box-shadow:0 18px 40px -18px rgba(0,0,0,.8); }
+    .st-dim { display:flex; justify-content:space-between; gap:.6rem; flex-wrap:wrap; margin-top:.5rem; }
+    .st-dim .live::before { content:""; display:inline-block; width:.5em; height:.5em; border-radius:50%; background:var(--pink); margin-right:.45em; vertical-align:.08em; animation:blink 1.6s steps(2,end) infinite; }
+    @keyframes blink { 50% { opacity:.2 } }
+
+    .st-panel { min-width:0; border:1px solid var(--line2); }
+    .st-tabs { display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--line2); }
+    .st-tabs button { font-family:var(--mono); text-transform:uppercase; letter-spacing:.08em; font-size:.66rem;
+      padding:.8em .4em; min-height:48px; border-right:1px solid var(--line); color:var(--grey); text-align:center; }
+    .st-tabs button:last-child { border-right:0; }
+    .st-tabs button span { display:block; font-size:.58rem; opacity:.7; }
+    .st-tabs button[aria-selected="true"] { color:var(--ink); background:var(--paper); }
+    .st-pane { padding:1rem; display:grid; gap:.55rem; }
+    .st-pane[hidden] { display:none; }
+    .st-lab { font:600 10px/1.2 var(--mono); letter-spacing:.18em; text-transform:uppercase; color:var(--grey); margin-top:.5rem; display:flex; justify-content:space-between; gap:.5rem; }
+    .st-lab:first-child { margin-top:0; }
+    .st-lab output { color:var(--paper); letter-spacing:.06em; }
+    .st-chips { display:flex; flex-wrap:wrap; gap:.35rem; }
+    .st-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(6.6rem,1fr)); gap:.45rem; }
+    .st-card { display:grid; gap:.25rem; align-content:start; text-align:left; border:1px solid var(--line); padding:.4rem; min-width:0;
+      transition:border-color .2s, background-color .2s; }
+    .st-card:hover { border-color:var(--line2); }
+    .st-card[aria-pressed="true"] { border-color:var(--pink); background:rgba(255,74,125,.07); box-shadow:inset 0 0 0 1px var(--pink); }
+    html[data-press="006"] .st-card[aria-pressed="true"] { background:rgba(229,138,95,.08); }
+    /* after a shot, a layout that needs more shots than were taken is locked */
+    .st-card[disabled] { opacity:.32; cursor:not-allowed; box-shadow:none; }
+    .st-card canvas { width:100%; height:4.6rem; display:block; }
+    .st-card b { font-family:var(--mono); font-weight:700; text-transform:uppercase; letter-spacing:.06em; font-size:.62rem; line-height:1.25; }
+    .st-card i { font-style:normal; font-size:.62rem; color:var(--grey); line-height:1.25; }
+    .st-group { display:grid; gap:.55rem; padding:.7rem; border:1px dashed var(--line2); }
+    .st-group[hidden] { display:none; }
+    .st-range { width:100%; accent-color:var(--pink); min-height:30px; }
+    .st-range:disabled { opacity:.35; }
+    .st-toggles { display:flex; flex-wrap:wrap; gap:.35rem; }
+    .st-sw { display:flex; flex-wrap:wrap; gap:.4rem; align-items:center; }
+    .st-sw button, .st-sw label { width:34px; height:34px; border:1px solid var(--line2); position:relative; display:grid; place-items:center; }
+    .st-sw button[aria-pressed="true"] { outline:2px solid var(--pink); outline-offset:2px; }
+    .st-sw .own { font:600 9px/1 var(--mono); letter-spacing:.06em; color:var(--grey); width:auto; padding:0 .55em; }
+    .st-sw label { cursor:pointer; overflow:hidden; background:conic-gradient(#e8a 0 25%, #8ce 0 50%, #cd8 0 75%, #fb7 0); }
+    .st-sw label input { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+    .st-text { width:100%; background:rgba(242,237,227,0.05); border:1px solid var(--line2); color:var(--paper);
+      padding:.7em .8em; min-height:46px; font:500 1rem/1.3 var(--body); }
+    .st-text:focus { outline:none; border-color:var(--pink); }
+    .st-fonts .chip { text-transform:none; letter-spacing:0; font-size:.95rem; }
+    .st-note { color:var(--grey); font-size:.8rem; }
+    .st-foot { display:flex; justify-content:space-between; gap:.6rem; flex-wrap:wrap; align-items:center; padding:.8rem 1rem; border-top:1px solid var(--line); }
+
+    .result { margin-top:.9rem; display:none; }
     .result.on { display:block; }
-    .result img { max-width:min(100%,26rem); border:1px solid var(--line2); }
-    .result .acts { display:flex; gap:.6rem; margin-top:.8rem; flex-wrap:wrap; }
+    .result .acts { display:flex; gap:.6rem; margin-top:.6rem; flex-wrap:wrap; }
 
     .album-head { display:flex; justify-content:space-between; align-items:baseline; gap:1rem; flex-wrap:wrap; margin-top:.5rem; }
-    .album-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:1rem; margin-top:1rem; }
+    .album-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:1rem; margin-top:1rem; align-items:start; }
     .album-grid figure { margin:0; border:1px solid var(--line2); background:#0c0b09; }
     .album-grid img { width:100%; display:block; }
     .album-grid figcaption { font-family:var(--mono); font-size:.62rem; color:var(--grey); padding:.4em .6em; letter-spacing:.08em; }
@@ -124,8 +197,8 @@
 
     .status { font-family:var(--mono); font-size:.78rem; color:var(--grey); margin-top:1rem; min-height:1.4em; }
     .status.err { color:var(--pink); }
-    .note { color:var(--grey); font-size:.82rem; margin-top:.8rem; max-width:44ch; }
-    .backlink { position:fixed; top:1rem; right:1rem; }
+    .note { color:var(--grey); font-size:.82rem; margin-top:.8rem; max-width:52ch; }
+    .backlink { position:fixed; top:1rem; right:1rem; z-index:30; background:var(--ink); }
     .music-toggle { position:fixed; left:1rem; bottom:1rem; z-index:40; width:46px; height:46px; border-radius:50%;
       border:1px solid var(--line2); background:var(--ink); color:var(--pink); font-size:1.15rem; display:grid; place-items:center;
       transition:transform .14s var(--spring), color .2s, border-color .2s; }
@@ -159,61 +232,56 @@
             <button class="btn" id="join-btn">Gabung</button>
           </div>
         </div>
-        <button class="btn" id="open-album" type="button" style="align-self:flex-start">🖼 Lihat album</button>
+        <div class="lobby-acts">
+          <button class="btn" id="lobby-studio-btn" type="button" aria-expanded="false">✎ Atur bingkai dulu</button>
+          <button class="btn" id="open-album" type="button">🖼 Lihat album</button>
+        </div>
         <p class="note">Kamera butuh izin dan koneksi https. Suara dimatikan biar nggak gaung — ngobrolnya lewat telepon biasa aja ya. Foto diambil langsung di browser, nggak diunggah ke mana-mana kecuali kamu simpan ke album.</p>
         <p class="status" id="lobby-status" role="status"></p>
       </div>
+      <div class="studio-slot" data-slot="lobby" hidden style="margin-top:1.6rem"></div>
     </section>
 
     <!-- WAITING (host) -->
     <section class="screen" id="s-wait">
-      <p class="tag">Bagikan kode ini ke pasangan kamu</p>
-      <div class="code" id="wait-code">—</div>
-      <div class="sharebox">
-        <input id="share-link" readonly aria-label="Tautan undangan">
-        <button class="btn" id="copy-link">Salin tautan</button>
+      <div class="wait-top">
+        <div class="wait-code-box">
+          <p class="tag">Bagikan kode ini ke pasangan kamu</p>
+          <div class="code" id="wait-code">—</div>
+          <div class="sharebox">
+            <input id="share-link" readonly aria-label="Tautan undangan">
+            <button class="btn" id="copy-link">Salin tautan</button>
+          </div>
+          <p class="status"><span id="wait-status" class="dotpulse">Menunggu pasangan bergabung</span></p>
+        </div>
+        <div class="stage">
+          <div class="feed me"><video id="selfPreview" autoplay playsinline muted></video><span class="who">Kamu</span></div>
+        </div>
       </div>
-      <p class="status"><span id="wait-status" class="dotpulse">Menunggu pasangan bergabung</span></p>
-      <div class="stage" style="grid-template-columns:1fr; max-width:22rem">
-        <div class="feed me"><video id="selfPreview" autoplay playsinline muted></video><span class="who">Kamu</span></div>
-      </div>
-      <div class="acts" style="justify-content:center">
+      <div class="controls" style="margin:1rem 0 1.4rem">
         <button class="btn" id="wait-cam" type="button" hidden>📷 Nyalakan kamera</button>
         <button class="btn" id="wait-back" type="button">← Batalkan room</button>
+        <span class="tag shoot-note">Sambil nunggu, atur tata letak, bingkai, dan tulisannya — nanti ikut ke layar dia.</span>
       </div>
+      <div class="studio-slot" data-slot="wait"></div>
     </section>
 
     <!-- SESSION -->
     <section class="screen" id="s-session">
-      <div class="stage">
-        <div class="feed me"><video id="selfVideo" autoplay playsinline muted></video><span class="who">Kamu</span></div>
-        <div class="feed"><video id="remoteVideo" autoplay playsinline></video><span class="who">Dia</span>
-          <div class="off" id="remote-off">menyambung…</div></div>
-      </div>
-      <div class="controls">
-        <span class="ctl-lab">Gaya</span>
-        <div class="looks" role="group" aria-label="Filter foto"></div>
-        <span class="ctl-lab">Bingkai</span>
-        <div class="layouts" role="group" aria-label="Tata letak">
-          <button class="chip" data-layout="side" aria-pressed="true">Berdampingan</button>
-          <button class="chip" data-layout="stack" aria-pressed="false">Tumpuk</button>
-          <button class="chip" data-layout="strip" aria-pressed="false">Strip ×3</button>
-          <button class="chip" data-layout="strip4" aria-pressed="false">Strip ×4</button>
-          <button class="chip" data-layout="grid" aria-pressed="false">Kotak 2×2</button>
+      <div class="session-top">
+        <div class="stage">
+          <div class="feed me"><video id="selfVideo" autoplay playsinline muted></video><span class="who">Kamu</span></div>
+          <div class="feed"><video id="remoteVideo" autoplay playsinline></video><span class="who">Dia</span>
+            <div class="off" id="remote-off">menyambung…</div></div>
         </div>
-        <button class="btn solid" id="shoot-btn">Ambil foto</button>
-        <button class="btn" id="cam-retry" type="button" hidden>📷 Nyalakan kamera</button>
-        <button class="btn" id="session-back" type="button">← Keluar sesi</button>
-      </div>
-      <div class="result" id="result">
-        <p class="tag">Hasil</p>
-        <img id="result-img" alt="Hasil photobox">
-        <div class="acts">
-          <button class="btn solid" id="download-btn">Unduh</button>
-          <button class="btn" id="save-album-btn">Simpan ke album</button>
-          <button class="btn" id="retake-btn">Ambil lagi</button>
+        <div class="controls">
+          <button class="btn solid" id="shoot-btn">Ambil foto</button>
+          <button class="btn" id="cam-retry" type="button" hidden>📷 Nyalakan kamera</button>
+          <button class="btn" id="session-back" type="button">← Keluar sesi</button>
+          <span class="tag shoot-note" id="shoot-note"></span>
         </div>
       </div>
+      <div class="studio-slot" data-slot="session"></div>
       <p class="status" id="session-status" role="status"></p>
     </section>
 
@@ -228,11 +296,101 @@
     </section>
   </div>
 
+  <!-- THE STUDIO, parked here until a screen asks for it -->
+  <div id="studio-home" hidden>
+    <div class="studio" id="studio">
+      <div class="st-view">
+        <div class="st-canvasbox"><canvas id="pv" role="img" aria-label="Pratinjau strip, persis seperti yang dicetak"></canvas></div>
+        <p class="st-dim tag"><span id="pv-state"></span><span id="pv-dim"></span></p>
+        <div class="result" id="result">
+          <p class="tag" id="result-tag">Hasil</p>
+          <div class="acts">
+            <button class="btn solid" id="download-btn" type="button">Unduh</button>
+            <button class="btn" id="save-album-btn" type="button">Simpan ke album</button>
+            <button class="btn" id="retake-btn" type="button">Ambil lagi</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="st-panel">
+        <div class="st-tabs" role="tablist" aria-label="Atur strip">
+          <button type="button" role="tab" data-tab="letak" aria-selected="true"><span>01</span>Tata letak</button>
+          <button type="button" role="tab" data-tab="bingkai" aria-selected="false"><span>02</span>Bingkai</button>
+          <button type="button" role="tab" data-tab="tulisan" aria-selected="false"><span>03</span>Tulisan</button>
+          <button type="button" role="tab" data-tab="gaya" aria-selected="false"><span>04</span>Gaya</button>
+        </div>
+
+        <div class="st-pane" data-pane="letak" role="tabpanel">
+          <div class="st-cards" id="st-layouts"></div>
+          <div class="st-group" id="st-kustom" hidden>
+            <span class="st-lab">Jumlah jepretan</span>
+            <div class="st-chips" data-key="n"></div>
+            <span class="st-lab">Susunan</span>
+            <div class="st-chips" data-key="susun"></div>
+          </div>
+          <span class="st-lab">Bentuk tiap foto</span>
+          <div class="st-chips" data-key="rasio"></div>
+          <span class="st-lab">Posisi</span>
+          <div class="st-toggles">
+            <button class="chip" type="button" data-flag="tukar" aria-pressed="false">⇄ Tukar kamu dan dia</button>
+          </div>
+        </div>
+
+        <div class="st-pane" data-pane="bingkai" role="tabpanel" hidden>
+          <div class="st-cards" id="st-frames"></div>
+          <label class="st-lab" for="st-tebal">Tebal bingkai <output id="o-tebal"></output></label>
+          <input class="st-range" id="st-tebal" type="range" min="0" max="80" step="1" data-key="tebal">
+          <label class="st-lab" for="st-jarak">Jarak antar foto <output id="o-jarak"></output></label>
+          <input class="st-range" id="st-jarak" type="range" min="0" max="48" step="1" data-key="jarak">
+          <label class="st-lab" for="st-sudut">Sudut foto <output id="o-sudut"></output></label>
+          <input class="st-range" id="st-sudut" type="range" min="0" max="40" step="1" data-key="sudut">
+          <span class="st-lab">Warna kertas</span>
+          <div class="st-sw" id="st-warna"></div>
+          <div class="st-toggles">
+            <button class="chip" type="button" data-flag="hiasan" aria-pressed="true">Hiasan</button>
+            <button class="chip" type="button" data-flag="garis" aria-pressed="true">Garis tepi foto</button>
+          </div>
+          <p class="st-note" id="st-none-note" hidden>Tanpa bingkai: fotonya sampai ke tepi, tulisannya di atas foto.</p>
+        </div>
+
+        <div class="st-pane" data-pane="tulisan" role="tabpanel" hidden>
+          <label class="st-lab" for="st-teks">Tulisan di strip <output id="o-teks"></output></label>
+          <input class="st-text" id="st-teks" type="text" maxlength="48" autocomplete="off" spellcheck="false" placeholder="Tulis sesuatu…">
+          <span class="st-lab">Contoh</span>
+          <div class="st-chips" id="st-presets"></div>
+          <span class="st-lab">Letak tulisan</span>
+          <div class="st-chips" data-key="posisi"></div>
+          <span class="st-lab">Huruf</span>
+          <div class="st-chips st-fonts" data-key="huruf"></div>
+          <label class="st-lab" for="st-ukuran">Ukuran tulisan <output id="o-ukuran"></output></label>
+          <input class="st-range" id="st-ukuran" type="range" min="60" max="160" step="5" data-key="ukuran">
+          <div class="st-toggles">
+            <button class="chip" type="button" data-flag="tanggal" aria-pressed="true">Tanggal &amp; jam</button>
+            <button class="chip" type="button" data-flag="cap" aria-pressed="true">Nomor pressing</button>
+          </div>
+        </div>
+
+        <div class="st-pane" data-pane="gaya" role="tabpanel" hidden>
+          <span class="st-lab">Warna foto</span>
+          <div class="st-chips looks" role="group" aria-label="Filter foto"></div>
+          <span class="st-lab">Hitung mundur</span>
+          <div class="st-chips" data-key="hitung"></div>
+        </div>
+
+        <div class="st-foot">
+          <span class="tag" id="st-sync">Diatur di sini, ikut ke layar dia.</span>
+          <button class="btn" id="st-reset" type="button">Kembalikan bawaan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="count" id="count" aria-hidden="true"><b id="count-n">3</b></div>
   <a class="btn backlink" href="./" id="backlink">← Album</a>
   <audio id="pb-song" loop preload="auto"></audio>
   <button class="music-toggle off" id="music-toggle" type="button" aria-label="Putar musik" title="Musik">♪</button>
 
+  <script src="assets/js/bingkai.js"></script>
   <script src="assets/js/photobox.js"></script>
 </body>
 </html>

@@ -9,3 +9,11 @@ functions
 *.md
 claudedesignskills-main
 claudedesignskills-main.zip
+*.test.mjs
+# local dev state and generated files: never part of the site (15 Sep: a deploy
+# after `wrangler dev` uploaded .wrangler/state and a worker source map)
+.wrangler
+.claude
+graphify-out
+.DS_Store
+Thumbs.db

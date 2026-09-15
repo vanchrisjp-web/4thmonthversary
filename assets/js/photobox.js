@@ -3,6 +3,8 @@
    One code per room; signaling relayed by the Worker (KV). Vanilla ICE, so the
    handshake is just offer -> answer. Media is peer-to-peer. Snapshots are
    composited on a canvas and downloaded — nothing is uploaded.
+   What the strip looks like (layout, frame, caption) is bingkai.js; this file
+   is the room, the cameras, the shutter, and the studio that drives it.
    ========================================================================== */
 (function () {
   "use strict";
@@ -46,12 +48,11 @@
   }
 
   var pc = null, localStream = null, role = null, myCode = null;
-  var connected = false, shooting = false, selectedLayout = "side", lastCanvas = null;
-  var selectedFilter = "asli";
+  var connected = false, shooting = false, lastCanvas = null;
   /* The composed strip, as a blob. The shooter also keeps lastCanvas (the PNG
-     original); the other one only ever has this. Either is enough to look at
-     and to download. */
-  var lastBlob = null, lastMime = "image/png", rxUrl = null;
+     original) and the pictures it was made from (lastPairs), so the frame can
+     still change after the shutter; the other one only ever has the blob. */
+  var lastBlob = null, lastMime = "image/png", rxUrl = null, lastPairs = null, shotAt = null;
   var CHUNK = 16 * 1024;          // SCTP-safe message size
   var rx = null;                   // an incoming strip, mid-flight
 
@@ -68,7 +69,13 @@
     malam:   { name: "Malam",   css: "grayscale(1) contrast(1.2) brightness(0.98)" },
     salju:   { name: "Salju",   css: "brightness(1.16) saturate(0.82) contrast(1.06) hue-rotate(8deg)" }
   };
-  function lookCSS() { var l = LOOKS[selectedFilter]; return (l && l.css) || "none"; }
+  /* Everything about how the strip is laid out and framed -- layout, frame,
+     caption, look, countdown -- is one object (bingkai.js), remembered per
+     pressing on this device and mirrored to the other booth. */
+  var BK = window.Bingkai;
+  var PRESS = pressNo();
+  var studio = loadStudio();
+  function lookCSS() { var l = LOOKS[studio.look]; return (l && l.css) || "none"; }
   function applyLookToPreview() {
     var f = lookCSS();
     // includes the lobby preview, so you can pick a look before connecting
@@ -76,13 +83,8 @@
       var v = $(sel); if (v) v.style.filter = f === "none" ? "" : f;
     });
   }
-  /* How many shots a layout needs. Strips take several; the rest take one. */
-  function shotsFor(layout) {
-    if (layout === "strip") return 3;
-    if (layout === "strip4") return 4;
-    if (layout === "grid") return 2;   // 2 pairs = a 2x2 of four pictures
-    return 1;
-  }
+  /* How many shots the chosen layout needs. */
+  function shotCount() { return BK.plan(studio).shots; }
   var dc = null, guestCounting = false; // data channel: sync the countdown to both sides
 
   // ------------------------------------------------------------ screens/status
@@ -90,6 +92,7 @@
     ["s-lobby", "s-wait", "s-session", "s-album"].forEach(function (s) {
       var el = $("#" + s); if (el) el.classList.toggle("on", s === id);
     });
+    mountStudio(id);
   }
   function setStatus(where, msg, err) {
     var el = $(where); if (!el) return;
@@ -217,6 +220,7 @@
   }
   function showSelf() {
     ["#selfPreview", "#selfVideo"].forEach(function (s) { var v = $(s); if (v) v.srcObject = localStream; });
+    pvKick();
   }
   // both screens carry the same button; whichever one is up gets it
   function refreshCamUI() {
@@ -331,6 +335,7 @@
       var off = $("#remote-off");
       var mark = function () {
         if (!off) return;
+        pvKick();
         if (rv.videoWidth > 0) { off.style.display = "none"; }
         else { off.style.display = ""; off.textContent = "kameranya lagi kepakai"; }
       };
@@ -555,11 +560,11 @@
   function enterSession() {
     show("s-session");
     showSelf();
-    setStatus("#session-status", "Tersambung. Pilih tata letak lalu ambil foto.");
-    refreshCamUI(); camHint();
+    setStatus("#session-status", "Tersambung. Atur tata letak, bingkai, dan tulisannya, lalu ambil foto.");
+    refreshCamUI(); camHint(); paintSync();
   }
 
-  // ------------------------------------------------------------ capture + compose
+  // ------------------------------------------------------------ capture
   function grabVideo(v, flip) {
     var w = (v && v.videoWidth) || 640, h = (v && v.videoHeight) || 480;
     var c = document.createElement("canvas"); c.width = w; c.height = h;
@@ -568,7 +573,6 @@
     try { g.drawImage(v, 0, 0, w, h); } catch (e) {}
     return c;
   }
-  function grabPair() { return { a: grabVideo($("#selfVideo"), true), b: grabVideo($("#remoteVideo"), false) }; }
 
   /* HOW FAR BEHIND HER PICTURE IS.
 
@@ -610,45 +614,32 @@
     }).catch(function () {});
   }
 
-  function mk(w, h) {
-    var c = document.createElement("canvas"); c.width = w; c.height = h;
-    var g = c.getContext("2d"); g.fillStyle = "#F2EDE3"; g.fillRect(0, 0, w, h);
-    return c;
-  }
-  function drawCover(g, src, x, y, w, h) {
-    var sw = src.width, sh = src.height; if (!sw || !sh) return;
-    var s = Math.max(w / sw, h / sh), dw = sw * s, dh = sh * s;
-    g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
-    // the chosen look is baked here, so the print matches the preview
-    try { g.filter = lookCSS(); } catch (e) {}
-    g.drawImage(src, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
-    try { g.filter = "none"; } catch (e) {}
-    g.restore();
-    g.strokeStyle = "rgba(18,16,14,0.85)"; g.lineWidth = 2; g.strokeRect(x + 1, y + 1, w - 2, h - 2);
-  }
-  function tsText() {
-    var d = new Date();
+  function tsText(d) {
+    d = d || new Date();
     return d.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" }) +
       "  ·  " + d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
   }
-  function heartLine(g, cx, y, font) {
-    g.font = font; g.textBaseline = "middle";
-    var L = "KAMU ", M = "♥", R = " AKU";
-    var lw = g.measureText(L).width, mw = g.measureText(M).width, rw = g.measureText(R).width;
-    var x = cx - (lw + mw + rw) / 2; g.textAlign = "left";
-    g.fillStyle = "#12100E"; g.fillText(L, x, y); x += lw;
-    g.fillStyle = "#FF4A7D"; g.fillText(M, x, y); x += mw;
-    g.fillStyle = "#12100E"; g.fillText(R, x, y);
+  // the live preview asks every frame; the words only change once a minute
+  var clockMin = -1, clockTxt = "";
+  function nowText() {
+    var d = new Date(), m = Math.floor(d.getTime() / 60000);
+    if (m !== clockMin) { clockMin = m; clockTxt = tsText(d); }
+    return clockTxt;
   }
+
+  // ------------------------------------------------------------ the pressing you walked in from
   /* The booth lives here on Side A, but later pressings link straight to it
      (?press=005). Whichever record you walked in from is the one stamped on
      the strip, so a photo taken from month five reads YS-005 -- not YS-004.
-     Anything unexpected falls back to this booth's own pressing. */
-  function pressMark() {
+     Anything unexpected falls back to this booth's own pressing. From month
+     six the pressing also picks the frame the booth starts in (bingkai.js
+     defaults), and the studio remembers choices per pressing. */
+  function pressNo() {
     var q = "";
     try { q = new URLSearchParams(location.search).get("press") || ""; } catch (e) {}
-    return /^[0-9]{1,3}$/.test(q) ? "YS-" + ("00" + q).slice(-3) : "YS-004";
+    return /^[0-9]{1,3}$/.test(q) ? ("00" + q).slice(-3) : "004";
   }
+  function pressMark() { return "YS-" + PRESS; }
   /* THE WAY BACK.
      The booth lives on Side A, but by month five you mostly arrive from
      somewhere else -- and the door out said "Album" and led to Side A's front
@@ -673,86 +664,438 @@
     q = String(q).replace(/[<>]/g, "").trim().slice(0, 28);
     return q || "sisi sebelumnya";
   }
+  /* The song of the month you came from (?song=), so walking in from the field
+     does not change the music under you. Only an mp3 on one of these pressings'
+     own workers is played. */
+  function songUrl() {
+    var q = "";
+    try { q = new URLSearchParams(location.search).get("song") || ""; } catch (e) {}
+    if (!q) return "";
+    try {
+      var u = new URL(q, location.href);
+      if (u.protocol === "https:" && /(^|\.)vanchrisjp\.workers\.dev$/.test(u.hostname) && /\.mp3$/i.test(u.pathname)) return u.href;
+    } catch (e) {}
+    return "";
+  }
   /* Say which pressing this strip will be stamped with, before it is taken --
      the number only appeared in six-point type in the footer of a photograph
      that had already been shot. */
   function paintPress() {
     var tag = document.querySelector("header.top .tag");
-    if (tag) tag.textContent = "Kamu & Aku · sesi berdua · " + pressMark();
+    var nm = BK.pressName(PRESS);
+    if (tag) tag.textContent = "Kamu & Aku · sesi berdua · " + pressMark() + (nm && PRESS !== "004" ? " · " + nm : "");
+    if (PRESS === "006") {
+      var hh = document.querySelector(".brand .hh");
+      if (hh) hh.textContent = "✿";
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute("content", "#15160F");
+    }
     var back = document.getElementById("backlink");
     var home = fromUrl();
     if (back && home) { back.href = home; back.textContent = "← " + fromName(); }
   }
-  function footerBand(g, W, H, FT, ts) {
-    var y = H - FT / 2;
-    g.strokeStyle = "rgba(18,16,14,0.25)"; g.lineWidth = 1;
-    g.beginPath(); g.moveTo(16, H - FT); g.lineTo(W - 16, H - FT); g.stroke();
-    g.textBaseline = "middle";
-    g.fillStyle = "#12100E"; g.font = "400 14px 'Space Mono', monospace"; g.textAlign = "left"; g.fillText(ts, 18, y);
-    g.fillStyle = "#9A958C"; g.font = "400 12px 'Space Mono', monospace"; g.textAlign = "right"; g.fillText(pressMark(), W - 18, y);
-    heartLine(g, W / 2, y, "700 18px 'Space Mono', monospace");
+
+  // ------------------------------------------------------------ the strip (bingkai.js)
+  /* Every picture of every shot, for bingkai's source callback. A layout that
+     asks for more shots than were taken reuses them in turn rather than
+     printing an empty box (the studio also locks those layouts after a shot). */
+  function pairSource(pairs) {
+    return function (cell) {
+      if (!pairs || !pairs.length) return null;
+      var pr = pairs[cell.shot % pairs.length], cv = pr && pr[cell.who];
+      return cv ? { img: cv, w: cv.width, h: cv.height } : null;
+    };
   }
-  // Cells are 4:3 to match the live preview (.feed is aspect-ratio 4/3, object-fit
-  // cover) — so what you frame in the preview is exactly what the result keeps.
-  var AR = 3 / 4; // cell height / width
-  function compose(layout, pairs) {
-    var P = 18, FT = 64, ts = tsText(), c, g;
-    if (layout === "stack") {
-      var Ws = 620, cwS = Ws - 2 * P, chS = Math.round(cwS * AR);
-      var Hs = 3 * P + 2 * chS + FT;
-      c = mk(Ws, Hs); g = c.getContext("2d");
-      drawCover(g, pairs[0].a, P, P, cwS, chS);
-      drawCover(g, pairs[0].b, P, 2 * P + chS, cwS, chS);
-      footerBand(g, Ws, Hs, FT, ts); return c;
-    }
-    if (layout === "strip") {
-      var W = 620, HEAD = 66, gap = 14, rows = pairs.length;
-      var cw = (W - 2 * P - gap) / 2, rowH = Math.round(cw * AR);
-      var H = HEAD + rows * rowH + (rows - 1) * gap + FT + P;
-      c = mk(W, H); g = c.getContext("2d");
-      heartLine(g, W / 2, HEAD / 2 + 4, "800 26px 'Archivo', sans-serif");
-      for (var i = 0; i < rows; i++) {
-        var yy = HEAD + i * (rowH + gap);
-        drawCover(g, pairs[i].a, P, yy, cw, rowH);
-        drawCover(g, pairs[i].b, P + cw + gap, yy, cw, rowH);
-      }
-      footerBand(g, W, H, FT, ts); return c;
-    }
-    if (layout === "strip4") {
-      var W4 = 620, HEAD4 = 66, gap4 = 12, rows4 = pairs.length;
-      var cw4 = (W4 - 2 * P - gap4) / 2, rowH4 = Math.round(cw4 * AR);
-      var H4 = HEAD4 + rows4 * rowH4 + (rows4 - 1) * gap4 + FT + P;
-      c = mk(W4, H4); g = c.getContext("2d");
-      heartLine(g, W4 / 2, HEAD4 / 2 + 4, "800 26px 'Archivo', sans-serif");
-      for (var j = 0; j < rows4; j++) {
-        var y4 = HEAD4 + j * (rowH4 + gap4);
-        drawCover(g, pairs[j].a, P, y4, cw4, rowH4);
-        drawCover(g, pairs[j].b, P + cw4 + gap4, y4, cw4, rowH4);
-      }
-      footerBand(g, W4, H4, FT, ts); return c;
-    }
-    if (layout === "grid") {
-      // two shots, four pictures, square-ish: a 2x2 contact sheet
-      var Wg = 900, gapg = 16;
-      var cwg = (Wg - 2 * P - gapg) / 2, chg = Math.round(cwg * AR);
-      var Hg = 2 * P + 2 * chg + gapg + FT;
-      c = mk(Wg, Hg); g = c.getContext("2d");
-      drawCover(g, pairs[0].a, P, P, cwg, chg);
-      drawCover(g, pairs[0].b, P + cwg + gapg, P, cwg, chg);
-      var y2 = P + chg + gapg;
-      drawCover(g, pairs[1].a, P, y2, cwg, chg);
-      drawCover(g, pairs[1].b, P + cwg + gapg, y2, cwg, chg);
-      footerBand(g, Wg, Hg, FT, ts); return c;
-    }
-    // side (default): two 4:3 cells
-    var Wd = 1120, cwd = (Wd - 3 * P) / 2, cHd = Math.round(cwd * AR);
-    var Hd = 2 * P + cHd + FT;
-    c = mk(Wd, Hd); g = c.getContext("2d");
-    drawCover(g, pairs[0].a, P, P, cwd, cHd);
-    drawCover(g, pairs[0].b, 2 * P + cwd, P, cwd, cHd);
-    footerBand(g, Wd, Hd, FT, ts); return c;
+  function compose(pairs) {
+    var p = BK.plan(studio);
+    var c = document.createElement("canvas"); c.width = p.W; c.height = p.H;
+    BK.draw(c.getContext("2d"), p, studio, { src: pairSource(pairs), filter: lookCSS(), date: tsText(shotAt), press: pressMark() });
+    c._clear = studio.frame === "none" && studio.layout === "polaroid";   // the only strip with see-through corners
+    return c;
+  }
+  // JPEG has no transparency: a frameless polaroid is laid on paper first
+  function flat(c) {
+    if (!c._clear) return c;
+    var f = document.createElement("canvas"); f.width = c.width; f.height = c.height;
+    var g = f.getContext("2d"); g.fillStyle = "#F4F1EA"; g.fillRect(0, 0, f.width, f.height); g.drawImage(c, 0, 0);
+    return f;
+  }
+  /* A canvas never waits for a web font: text drawn before the face arrives is
+     set in the fallback, permanently. So the chosen face is loaded first. */
+  function fontsReady() {
+    if (!document.fonts || !document.fonts.load) return Promise.resolve();
+    var H = BK.HURUF[studio.huruf], F = BK.FRAMES[studio.frame];
+    var list = [H.style + " " + H.weight + " 32px " + H.family, "400 14px " + F.mono];
+    return Promise.race([
+      Promise.all(list.map(function (f) { return document.fonts.load(f).catch(function () {}); })),
+      wait(2500)
+    ]);
+  }
+  function preloadFonts() {
+    if (!document.fonts || !document.fonts.load) return;
+    var list = BK.HURUF_ORDER.map(function (id) { var H = BK.HURUF[id]; return H.style + " " + H.weight + " 32px " + H.family; });
+    list.push("400 14px 'Space Mono'", "400 14px 'IBM Plex Mono'");
+    Promise.all(list.map(function (f) { return document.fonts.load(f).catch(function () {}); }))
+      .then(function () { pvKick(); thumbsSoon(); });
   }
 
+  // ------------------------------------------------------------ the studio's settings
+  function loadStudio() {
+    var d = window.Bingkai.defaults(PRESS), saved = null;
+    try { saved = JSON.parse(localStorage.getItem("pb-studio-" + PRESS) || "null"); } catch (e) {}
+    if (saved && typeof saved === "object") {
+      for (var k in saved) if (Object.prototype.hasOwnProperty.call(saved, k)) d[k] = saved[k];
+    }
+    return window.Bingkai.norm(d);
+  }
+  function saveStudio() { try { localStorage.setItem("pb-studio-" + PRESS, JSON.stringify(studio)); } catch (e) {} }
+  function withPatch(o, patch) {
+    var r = {}, k;
+    for (k in o) r[k] = o[k];
+    for (k in patch) if (Object.prototype.hasOwnProperty.call(patch, k)) r[k] = patch[k];
+    return r;
+  }
+
+  /* ONE SET OF CHOICES FOR TWO BOOTHS.
+     Whatever either of you changes is sent across, so both previews show the
+     strip that will print. Each set is stamped with when it was last touched
+     and the newer one wins; with nothing touched on either side, the host's
+     stands. (The old look/layout messages still go out too, for a booth tab
+     that is running yesterday's script -- but once the other side has spoken
+     in whole sets, its old messages are ignored, or the two would swap.) */
+  var OLD_LAYOUTS = /^(side|stack|strip|strip4|grid)$/;
+  var peerStudio = false, sendT = 0, saveT = 0, syncFlashT = 0;
+  function setStudio(patch, remote) {
+    var before = studio;
+    var next = BK.norm(withPatch(studio, patch));
+    next.at = remote ? (Number(patch.at) || before.at) : Date.now();
+    studio = next;
+    clearTimeout(saveT); saveT = setTimeout(saveStudio, 250);
+    applyLookToPreview(); paintStudio(); pvKick(); thumbsSoon();
+    if (lastPairs && pv.mode === "result") recomposeSoon();
+    if (!remote) {
+      if (pv.mode === "received" && dcOpen()) { pv.pending = true; pvKick(); }
+      clearTimeout(sendT);
+      sendT = setTimeout(function () { sendDC({ t: "studio", v: studio }); }, 120);
+      if (before.look !== studio.look) sendDC({ t: "look", v: studio.look });
+      if (before.layout !== studio.layout && OLD_LAYOUTS.test(studio.layout)) sendDC({ t: "layout", v: studio.layout });
+    }
+  }
+  function takeStudio(v) {
+    var o = BK.norm(v);
+    if (o.at < studio.at || (o.at === studio.at && role === "host")) return;
+    if (JSON.stringify(o) === JSON.stringify(studio)) return;
+    setStudio(o, true);
+    var s = $("#st-sync");
+    if (s) {
+      s.textContent = "Barusan diubah dari layar dia ✓";
+      clearTimeout(syncFlashT); syncFlashT = setTimeout(paintSync, 2600);
+    }
+  }
+  function dcOpen() { return !!(dc && dc.readyState === "open"); }
+  function paintSync() {
+    var s = $("#st-sync"); if (!s) return;
+    s.textContent = dcOpen() ? "Diatur di sini, ikut ke layar dia." : "Tersimpan di perangkat ini, nanti ikut ke layar dia.";
+  }
+
+  // ------------------------------------------------------------ the live preview
+  /* The strip as it will print, redrawn from both cameras about twelve times a
+     second -- the same bingkai.draw as the print, on a context scaled down to
+     the screen. While shooting, pictures already taken hold still and the next
+     shot is outlined; afterwards it is the result, which stays editable. */
+  var pv = { mode: "live", img: null, raf: 0, idle: 0, last: 0, dirty: true, pending: false, boxW: 0 };
+  var shootPairs = null, shotIdx = -1;
+  /* The mirror on the screen that is showing. Both <video>s hold the same
+     camera, but the one on a hidden screen reports its size and paints black. */
+  function selfVideo() {
+    var list = [$("#selfVideo"), $("#selfPreview")];
+    for (var i = 0; i < list.length; i++) {
+      var v = list[i];
+      if (v && v.videoWidth && v.offsetParent !== null) return v;
+    }
+    return null;
+  }
+  function liveSource(cell) {
+    var pr = shootPairs && shootPairs[cell.shot], cv = pr && pr[cell.who];
+    if (cv) return { img: cv, w: cv.width, h: cv.height };
+    var v = cell.who === "a" ? selfVideo() : (connected ? $("#remoteVideo") : null);
+    if (v && v.videoWidth) return { img: v, w: v.videoWidth, h: v.videoHeight, flip: cell.who === "a" };
+    return null;
+  }
+  function studioShown() {
+    var st = $("#studio");
+    return !!(st && st.parentNode && st.parentNode.id !== "studio-home");
+  }
+  function pvKick() {
+    pv.dirty = true;
+    if (!pv.raf) pv.raf = requestAnimationFrame(pvFrame);
+  }
+  function pvFrame(t) {
+    pv.raf = 0;
+    if (!studioShown()) return;
+    var rv = $("#remoteVideo");
+    var moving = pv.mode === "live" && !!(selfVideo() || (connected && rv && rv.videoWidth));
+    if (pv.dirty || (moving && t - pv.last > 80)) { pvRender(); pv.last = t; pv.dirty = false; }
+    if (moving) pv.raf = requestAnimationFrame(pvFrame);
+    else if (pv.mode === "live" && !pv.idle) pv.idle = setTimeout(function () { pv.idle = 0; pvKick(); }, 1000);
+  }
+  function measureBox() {
+    var box = $(".st-canvasbox"); if (!box) return;
+    var cs = window.getComputedStyle(box);
+    pv.boxW = box.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+  }
+  function pvRender() {
+    var cv = $("#pv"); if (!cv) return;
+    if (!pv.boxW) measureBox();
+    var received = pv.mode === "received" && pv.img;
+    var p = received ? null : BK.plan(studio);
+    var W0 = received ? pv.img.naturalWidth : p.W, H0 = received ? pv.img.naturalHeight : p.H;
+    var availW = Math.max(120, pv.boxW || 320), availH = Math.max(240, Math.min(window.innerHeight * 0.7, 820));
+    var s = Math.min(availW / W0, availH / H0), dpr = Math.min(2, window.devicePixelRatio || 1);
+    var cssW = Math.max(1, Math.round(W0 * s)), cssH = Math.max(1, Math.round(H0 * s));
+    var bw = Math.round(cssW * dpr), bh = Math.round(cssH * dpr);
+    if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
+    if (cv.style.width !== cssW + "px" || cv.style.height !== cssH + "px") { cv.style.width = cssW + "px"; cv.style.height = cssH + "px"; }
+    var g = cv.getContext("2d");
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, bw, bh);
+    if (received) {
+      g.drawImage(pv.img, 0, 0, bw, bh);
+    } else {
+      var k = bw / W0;
+      g.setTransform(k, 0, 0, k, 0, 0);
+      BK.draw(g, p, studio, {
+        src: pv.mode === "result" ? pairSource(lastPairs) : liveSource,
+        filter: lookCSS(), press: pressMark(),
+        date: pv.mode === "result" ? tsText(shotAt) : nowText(),
+        hot: shooting ? shotIdx : -1
+      });
+    }
+    paintDims(p);
+  }
+  var dimTxt = null, stateTxt = null;
+  function paintDims(p) {
+    var dim = p ? p.W + " × " + p.H + " px · " + p.shots + " jepretan"
+      : (pv.img ? pv.img.naturalWidth + " × " + pv.img.naturalHeight + " px" : "");
+    var st, live = false;
+    if (shooting) st = "Jepretan " + (shotIdx + 1) + " dari " + (p ? p.shots : "?");
+    else if (pv.mode === "result") st = "Hasil · masih bisa diganti";
+    else if (pv.mode === "received") st = pv.pending ? "Nunggu versi baru dari dia…" : "Hasil dari dia";
+    else { st = "Pratinjau langsung"; live = true; }
+    if (dim !== dimTxt) { dimTxt = dim; var d = $("#pv-dim"); if (d) d.textContent = dim; }
+    if (st !== stateTxt) {
+      stateTxt = st;
+      var e = $("#pv-state");
+      if (e) { e.textContent = st; e.className = live ? "live" : ""; }
+    }
+  }
+
+  // ------------------------------------------------------------ the cards you choose from
+  var thumbT = 0;
+  function thumbsSoon() { clearTimeout(thumbT); thumbT = setTimeout(paintThumbs, 60); }
+  function paintThumbs() {
+    if (!studioShown()) return;
+    document.querySelectorAll("#st-layouts canvas").forEach(function (cv) {
+      if (cv.offsetParent === null) return;
+      thumb(cv, withPatch(studio, { layout: cv.getAttribute("data-id") }));
+    });
+    document.querySelectorAll("#st-frames canvas").forEach(function (cv) {
+      if (cv.offsetParent === null) return;
+      thumb(cv, BK.pakai(studio, cv.getAttribute("data-id")));
+    });
+  }
+  function thumb(cv, o) {
+    var p = BK.plan(o), dpr = Math.min(2, window.devicePixelRatio || 1);
+    var w = cv.clientWidth || 104, h = cv.clientHeight || 74;
+    var bw = Math.round(w * dpr), bh = Math.round(h * dpr);
+    if (cv.width !== bw) cv.width = bw;
+    if (cv.height !== bh) cv.height = bh;
+    var g = cv.getContext("2d");
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, bw, bh);
+    var s = Math.min(bw / p.W, bh / p.H) * 0.92;
+    g.setTransform(s, 0, 0, s, (bw - p.W * s) / 2, (bh - p.H * s) / 2);
+    BK.draw(g, p, o, { thumb: true, press: pressMark(), date: "" });
+  }
+
+  function buildStudio() {
+    function el(tag, cls, text) {
+      var e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text != null) e.textContent = text;
+      return e;
+    }
+    function card(host, id, name, note, attr, onPick) {
+      var b = el("button", "st-card"); b.type = "button"; b.setAttribute(attr, id); b.setAttribute("aria-pressed", "false");
+      var cv = el("canvas"); cv.setAttribute("data-id", id); cv.setAttribute("aria-hidden", "true");
+      b.appendChild(cv); b.appendChild(el("b", null, name));
+      if (note) b.appendChild(el("i", null, note));
+      b.addEventListener("click", onPick);
+      host.appendChild(b);
+    }
+    var lays = $("#st-layouts");
+    BK.LAYOUTS.forEach(function (L) {
+      card(lays, L.id, L.name, L.note, "data-layout", function () { setStudio({ layout: L.id }); });
+    });
+    var FRAME_NOTE = { ladang: "YS-006", sisia: "YS-004", kafe: "YS-005", salju: "dingin, bersih", film: "roll film", putih: "galeri", none: "foto sampai tepi" };
+    var frs = $("#st-frames");
+    BK.FRAME_ORDER.forEach(function (id) {
+      card(frs, id, BK.FRAMES[id].name, FRAME_NOTE[id], "data-frame", function () { setStudio(BK.pakai(studio, id)); });
+    });
+
+    function chips(key, items) {
+      var row = document.querySelector('.st-chips[data-key="' + key + '"]'); if (!row) return;
+      items.forEach(function (it) {
+        var b = el("button", "chip", it.name); b.type = "button";
+        b.setAttribute("data-val", String(it.id)); b.setAttribute("aria-pressed", "false");
+        if (it.font) { b.style.fontFamily = it.font.family; b.style.fontWeight = it.font.weight; b.style.fontStyle = it.font.style; }
+        b.addEventListener("click", function () { var o = {}; o[key] = it.id; setStudio(o); });
+        row.appendChild(b);
+      });
+    }
+    chips("n", [1, 2, 3, 4].map(function (k) { return { id: k, name: k + " jepretan" }; }));
+    chips("susun", BK.SUSUN);
+    chips("rasio", BK.RASIO_ORDER.map(function (r) {
+      return { id: r, name: r + ({ "4:3": " · lebar", "1:1": " · kotak", "3:4": " · tegak", "16:9": " · sinema" })[r] };
+    }));
+    chips("posisi", BK.POSISI);
+    chips("huruf", BK.HURUF_ORDER.map(function (id) { return { id: id, name: BK.HURUF[id].name, font: BK.HURUF[id] }; }));
+    chips("hitung", [3, 5, 10].map(function (k) { return { id: k, name: k + " detik" }; }));
+
+    var lookRow = document.querySelector(".looks");
+    if (lookRow) Object.keys(LOOKS).forEach(function (k) {
+      var b = el("button", "chip", LOOKS[k].name); b.type = "button";
+      b.setAttribute("data-look", k); b.setAttribute("aria-pressed", "false");
+      b.addEventListener("click", function () { setStudio({ look: k }); });
+      lookRow.appendChild(b);
+    });
+
+    document.querySelectorAll("#studio [data-flag]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var o = {}, f = b.getAttribute("data-flag"); o[f] = !studio[f]; setStudio(o);
+      });
+    });
+    document.querySelectorAll(".st-range[data-key]").forEach(function (r) {
+      r.addEventListener("input", function () { var o = {}; o[r.getAttribute("data-key")] = Number(r.value); setStudio(o); });
+    });
+
+    var sw = $("#st-warna");
+    if (sw) {
+      var own = el("button", "own", "Bawaan"); own.type = "button"; own.setAttribute("data-warna", "");
+      sw.appendChild(own);
+      BK.WARNA.forEach(function (hex) {
+        var b = el("button"); b.type = "button"; b.setAttribute("data-warna", hex.toLowerCase());
+        b.style.background = hex; b.setAttribute("aria-label", "Kertas " + hex);
+        sw.appendChild(b);
+      });
+      var lab = el("label"); lab.title = "Warna sendiri";
+      var pick = el("input"); pick.type = "color"; pick.id = "st-warna-own"; pick.setAttribute("aria-label", "Warna kertas sendiri");
+      lab.appendChild(pick); sw.appendChild(lab);
+      sw.addEventListener("click", function (e) {
+        var b = e.target.closest ? e.target.closest("button[data-warna]") : null;
+        if (b) setStudio({ warna: b.getAttribute("data-warna") });
+      });
+      pick.addEventListener("input", function () { setStudio({ warna: pick.value }); });
+    }
+
+    var tx = $("#st-teks");
+    if (tx) tx.addEventListener("input", function () { setStudio({ teks: tx.value }); });
+    var pr = $("#st-presets");
+    if (pr) BK.presets(PRESS).forEach(function (s) {
+      var b = el("button", "chip", s); b.type = "button"; b.style.textTransform = "none";
+      b.setAttribute("data-teks", s); b.setAttribute("aria-pressed", "false");
+      b.addEventListener("click", function () {
+        setStudio({ teks: s, posisi: studio.posisi === "tanpa" ? "bawah" : studio.posisi });
+      });
+      pr.appendChild(b);
+    });
+
+    document.querySelectorAll(".st-tabs [data-tab]").forEach(function (t) {
+      t.addEventListener("click", function () {
+        document.querySelectorAll(".st-tabs [data-tab]").forEach(function (x) {
+          x.setAttribute("aria-selected", x === t ? "true" : "false");
+        });
+        document.querySelectorAll(".st-pane").forEach(function (p) { p.hidden = p.getAttribute("data-pane") !== t.getAttribute("data-tab"); });
+        thumbsSoon();
+      });
+    });
+    var reset = $("#st-reset");
+    if (reset) reset.addEventListener("click", function () { setStudio(BK.defaults(PRESS)); });
+  }
+
+  function paintStudio() {
+    var none = studio.frame === "none";
+    var taken = pv.mode === "result" && lastPairs ? lastPairs.length : 0;
+    document.querySelectorAll("#st-layouts .st-card").forEach(function (b) {
+      var id = b.getAttribute("data-layout");
+      b.setAttribute("aria-pressed", id === studio.layout ? "true" : "false");
+      var need = taken ? BK.plan(withPatch(studio, { layout: id })).shots : 0;
+      var lock = shooting ? id !== studio.layout : (taken && need > taken);
+      b.disabled = !!lock;
+      b.title = lock && !shooting ? "Perlu " + need + " jepretan — ambil lagi dulu" : "";
+    });
+    document.querySelectorAll("#st-frames .st-card").forEach(function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-frame") === studio.frame ? "true" : "false");
+    });
+    document.querySelectorAll(".st-chips[data-key]").forEach(function (row) {
+      var key = row.getAttribute("data-key");
+      row.querySelectorAll(".chip").forEach(function (b) {
+        var val = b.getAttribute("data-val");
+        b.setAttribute("aria-pressed", String(studio[key]) === val ? "true" : "false");
+        if (key === "n") b.disabled = shooting || !!(taken && Number(val) > taken);
+        if (key === "susun") b.disabled = shooting;
+        if (key === "posisi" && val === "atas") b.disabled = studio.layout === "polaroid";
+      });
+    });
+    document.querySelectorAll(".chip[data-look]").forEach(function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-look") === studio.look ? "true" : "false");
+    });
+    document.querySelectorAll("#studio [data-flag]").forEach(function (b) {
+      var f = b.getAttribute("data-flag");
+      b.setAttribute("aria-pressed", studio[f] ? "true" : "false");
+      if (f === "hiasan") b.disabled = none || !BK.FRAMES[studio.frame].decor;
+      if (f === "garis") b.disabled = none || studio.layout === "polaroid" || !BK.FRAMES[studio.frame].line;
+    });
+    document.querySelectorAll(".st-range[data-key]").forEach(function (r) {
+      var key = r.getAttribute("data-key");
+      if (document.activeElement !== r) r.value = studio[key];
+      r.disabled = none && key !== "ukuran";
+      var out = $("#o-" + key);
+      if (out) out.textContent = none && key !== "ukuran" ? "tanpa bingkai" : studio[key] + (key === "ukuran" ? "%" : " px");
+    });
+    var nn = $("#st-none-note"); if (nn) nn.hidden = !none;
+    var ku = $("#st-kustom"); if (ku) ku.hidden = studio.layout !== "kustom";
+    var tx = $("#st-teks");
+    if (tx && document.activeElement !== tx) tx.value = studio.teks;
+    var ot = $("#o-teks"); if (ot) ot.textContent = studio.teks.length + "/48";
+    document.querySelectorAll("#st-presets [data-teks]").forEach(function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-teks") === studio.teks ? "true" : "false");
+    });
+    document.querySelectorAll("#st-warna [data-warna]").forEach(function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-warna") === studio.warna ? "true" : "false");
+    });
+    var pick = $("#st-warna-own");
+    if (pick && document.activeElement !== pick) pick.value = studio.warna || BK.FRAMES[studio.frame].paper || "#ffffff";
+    var note = $("#shoot-note");
+    if (note) {
+      var n = BK.plan(studio).shots;
+      note.textContent = n + " jepretan · hitung mundur " + studio.hitung + " detik" + (n > 1 ? " tiap jepretan" : "");
+    }
+    paintSync();
+  }
+
+  // the studio is one element, carried to whichever screen is showing
+  function mountStudio(screenId) {
+    var st = $("#studio"), home = $("#studio-home");
+    if (!st || !home) return;
+    var name = { "s-lobby": "lobby", "s-wait": "wait", "s-session": "session" }[screenId] || "";
+    var slot = name ? document.querySelector('.studio-slot[data-slot="' + name + '"]') : null;
+    if (slot && slot.hidden) slot = null;
+    var target = slot || home;
+    if (st.parentNode !== target) target.appendChild(st);
+    if (slot) { measureBox(); paintStudio(); thumbsSoon(); pvKick(); }
+  }
+
+  // ------------------------------------------------------------ countdown + the other booth
   function doCountdown(from) {
     var el = $("#count"), n = $("#count-n");
     el.classList.add("on");
@@ -764,6 +1107,7 @@
   }
   // data channel: peer messages sync the countdown so both pose at the same time
   function setupDC(ch) {
+    peerStudio = false;
     ch.onmessage = function (e) {
       // binary frames are strip chunks, not messages
       if (typeof e.data !== "string") {
@@ -771,38 +1115,46 @@
           rx.parts.push(e.data);
           rx.got += e.data.byteLength || 0;
           if (rx.size) {
-            setStatus("#session-status", "Menerima hasil foto\u2026 " +
+            setStatus("#session-status", "Menerima hasil foto… " +
               Math.min(100, Math.round((rx.got / rx.size) * 100)) + "%");
           }
         }
         return;
       }
       var m; try { m = JSON.parse(e.data); } catch (er) { return; }
-      if (m && m.t === "cd") guestCountdown(m.n || 3); // partner started a shot -- count down here too
-      // keep both booths on the same look and layout, so the guest's preview
-      // shows exactly what the host is about to print
-      if (m && m.t === "look" && LOOKS[m.v]) {
-        selectedFilter = m.v; applyLookToPreview(); syncChips();
-      }
-      if (m && m.t === "layout" && m.v) { selectedLayout = m.v; syncChips(); }
-      if (m && m.t === "shot") {
+      if (!m) return;
+      if (m.t === "cd") guestCountdown(m.n || 3); // partner started a shot -- count down here too
+      if (m.t === "studio" && m.v && typeof m.v === "object") { peerStudio = true; takeStudio(m.v); }
+      // a booth on yesterday's script only speaks these two
+      if (m.t === "look" && LOOKS[m.v] && !peerStudio) setStudio({ look: m.v }, true);
+      if (m.t === "layout" && m.v && !peerStudio) setStudio({ layout: m.v }, true);
+      if (m.t === "shot") {
         rx = { size: m.size || 0, mime: m.mime || "image/jpeg", parts: [], got: 0 };
-        setStatus("#session-status", "Menerima hasil foto\u2026");
+        setStatus("#session-status", "Menerima hasil foto…");
       }
-      if (m && m.t === "shotdone" && rx) {
+      if (m.t === "shotdone" && rx) {
         var blob = new Blob(rx.parts, { type: rx.mime });
-        lastBlob = blob; lastMime = rx.mime; lastCanvas = null;
+        lastBlob = blob; lastMime = rx.mime; lastCanvas = null; lastPairs = null;
         if (rxUrl) URL.revokeObjectURL(rxUrl);
         rxUrl = URL.createObjectURL(blob);
-        showResult(rxUrl, true);
-        setStatus("#session-status", "Hasil foto dari pasanganmu \u2713");
+        showReceived(rxUrl);
+        setStatus("#session-status", "Hasil foto dari pasanganmu ✓");
         rx = null;
       }
     };
     ch.binaryType = "arraybuffer";
-    // whoever opens the channel announces what they already have chosen, so a
-    // look picked before the other one arrived is not silently lost
-    ch.onopen = function () { sendDC({ t: "look", v: selectedFilter }); sendDC({ t: "layout", v: selectedLayout }); };
+    /* Whoever opens the channel says what it already has chosen, so a frame
+       picked before the other one arrived is not lost. The answering side's
+       channel is often open before this handler exists, so check, not wait. */
+    var hello = function () {
+      sendDC({ t: "studio", v: studio });
+      sendDC({ t: "look", v: studio.look });
+      if (OLD_LAYOUTS.test(studio.layout)) sendDC({ t: "layout", v: studio.layout });
+      paintSync();
+    };
+    ch.onopen = hello;
+    ch.onclose = paintSync;
+    if (ch.readyState === "open") hello();
   }
   function sendDC(obj) { try { if (dc && dc.readyState === "open") dc.send(JSON.stringify(obj)); } catch (e) {} }
 
@@ -810,45 +1162,65 @@
      ending. The shooter sends the finished strip straight down the same data
      channel the countdown already uses, so it lands on both screens.
      JPEG rather than the PNG original: a quarter of the bytes over a link
-     that may be crossing an ocean, and indistinguishable at this size. */
+     that may be crossing an ocean, and indistinguishable at this size.
+     The frame can change after the shot, so a strip can be sent again; each
+     sending has a number, and one that is overtaken stops mid-stream rather
+     than interleaving its chunks with the newer one. */
+  var shareGen = 0;
   function shareShot(canvas) {
     if (!dc || dc.readyState !== "open" || !canvas.toBlob) return;
-    canvas.toBlob(function (blob) {
-      if (!blob) return;
+    var gen = ++shareGen;
+    flat(canvas).toBlob(function (blob) {
+      if (!blob || gen !== shareGen) return;
       blob.arrayBuffer().then(function (buf) {
-        sendDC({ t: "shot", size: buf.byteLength, mime: blob.type || "image/jpeg" });
+        if (gen !== shareGen) return;
+        sendDC({ t: "shot", size: buf.byteLength, mime: blob.type || "image/jpeg", gen: gen });
         var off = 0;
         (function pump() {
-          if (!dc || dc.readyState !== "open") return;
+          if (!dc || dc.readyState !== "open" || gen !== shareGen) return;
           while (off < buf.byteLength) {
             // let the channel drain rather than burying it and losing the tail
             if (dc.bufferedAmount > 512 * 1024) { setTimeout(pump, 50); return; }
             try { dc.send(buf.slice(off, off + CHUNK)); } catch (e) { return; }
             off += CHUNK;
           }
-          sendDC({ t: "shotdone" });
+          sendDC({ t: "shotdone", gen: gen });
         })();
       });
     }, "image/jpeg", 0.92);
   }
+  var recT = 0;
+  function recomposeSoon() {
+    clearTimeout(recT);
+    recT = setTimeout(function () {
+      if (!lastPairs) return;
+      fontsReady().then(function () {
+        if (!lastPairs) return;
+        lastCanvas = compose(lastPairs); lastBlob = null; lastMime = "image/png";
+        shareShot(lastCanvas);
+      });
+    }, 500);
+  }
 
-  function showResult(src, shared) {
-    $("#result-img").src = src;
-    $("#result").classList.add("on");
-    var tag = $("#result .tag");
-    if (tag) tag.textContent = shared ? "Hasil \u00b7 dari pasanganmu" : "Hasil";
+  function resultUI(shared) {
+    var r = $("#result"); if (!r) return;
+    r.classList.add("on");
+    var tag = $("#result-tag");
+    if (tag) tag.textContent = shared
+      ? "Hasil · dari pasanganmu — ganti bingkai atau tulisannya, versi barunya dikirim ulang"
+      : "Hasil — bingkai, tulisan, dan warnanya masih bisa diganti sebelum disimpan";
     var save = $("#save-album-btn");
     // only the one who pressed the shutter files it, so the album gets one copy
     if (save) { save.disabled = !!shared; save.title = shared ? "Yang motret yang nyimpen ke album" : ""; }
-    $("#result").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    paintStudio();
+    var view = $(".st-view");
+    if (view && view.scrollIntoView) view.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
-  function syncChips() {
-    document.querySelectorAll(".chip[data-look]").forEach(function (x) {
-      x.setAttribute("aria-pressed", x.dataset.look === selectedFilter ? "true" : "false");
-    });
-    document.querySelectorAll(".chip[data-layout]").forEach(function (x) {
-      x.setAttribute("aria-pressed", x.dataset.layout === selectedLayout ? "true" : "false");
-    });
+  function showReceived(url) {
+    var img = new Image();
+    img.onload = function () { pv.img = img; pv.mode = "received"; pv.pending = false; pvKick(); };
+    img.src = url;
+    resultUI(true);
   }
   function guestCountdown(from) {
     if (guestCounting || shooting) return; // don't stack with our own capture
@@ -866,20 +1238,22 @@
     shooting = true;
     $("#shoot-btn").disabled = true;
     $("#result").classList.remove("on");
-    var n = shotsFor(selectedLayout);
+    lastPairs = null; pv.mode = "live"; pv.img = null; pv.pending = false;
+    var n = shotCount(), secs = studio.hitung;
     var pairs = [];
-    (function ready() {
-      return (document.fonts && document.fonts.ready) ? document.fonts.ready.catch(function () {}) : Promise.resolve();
-    })().then(function () {
+    shootPairs = pairs; shotIdx = 0; shotAt = new Date();
+    paintStudio(); pvKick();
+    fontsReady().then(function () {
       return (function loop(i) {
         if (i >= n) return Promise.resolve();
+        shotIdx = i; pvKick();
         sampleLag();
-        sendDC({ t: "cd", n: 3 });            // she starts the moment this lands
+        sendDC({ t: "cd", n: secs });            // she starts the moment this lands
         /* ...which is one-way-latency from now, so wait that long before
            starting ours. Both countdowns then run against the same wall clock
            and both of you hit "1" together. */
         var lead = Math.min(300, Math.round(_rttMs / 2));
-        return wait(lead).then(function () { return doCountdown(3); }).then(function () {
+        return wait(lead).then(function () { return doCountdown(secs); }).then(function () {
           /* THE SHUTTER, ALIGNED.
              Take our own frame at the instant of GO. Her frame of that same
              instant has not arrived yet -- it is still in flight and in the
@@ -889,20 +1263,27 @@
           var mine = grabVideo($("#selfVideo"), true);
           return wait(_lagMs).then(function () {
             pairs.push({ a: mine, b: grabVideo($("#remoteVideo"), false) });
+            pvKick();
           });
         }).then(function () {
           return (i < n - 1 ? wait(800) : Promise.resolve()).then(function () { return loop(i + 1); });
         });
       })(0);
     }).then(function () {
-      lastCanvas = compose(selectedLayout, pairs);
+      lastPairs = pairs; shootPairs = null; shotIdx = -1;
+      lastCanvas = compose(pairs);
       lastBlob = null; lastMime = "image/png";
-      showResult(lastCanvas.toDataURL("image/png"), false);
+      pv.mode = "result"; pvKick();
+      shooting = false;
+      resultUI(false);
       shareShot(lastCanvas);        // and onto the other screen
+      setStatus("#session-status", "Jadi ✓ Bingkai dan tulisannya masih bisa diganti, lalu simpan.");
     }).catch(function () {
+      shootPairs = null; shotIdx = -1;
       setStatus("#session-status", "Gagal mengambil foto. Coba lagi.", true);
     }).then(function () {
       shooting = false; $("#shoot-btn").disabled = false;
+      paintStudio(); pvKick();
     });
   }
 
@@ -913,22 +1294,36 @@
   }
 
   // ------------------------------------------------------------ album (KV-backed)
+  /* PNG, unless a tall strip of photographs would be too big for the album
+     (the Worker takes 5 MB) -- then the same strip as a high-quality JPEG. */
+  function uploadBlob(c) {
+    return new Promise(function (resolve) {
+      c.toBlob(function (png) {
+        if (png && png.size <= 4.5 * 1024 * 1024) { resolve(png); return; }
+        flat(c).toBlob(function (jpg) { resolve(jpg || png); }, "image/jpeg", 0.92);
+      }, "image/png");
+    });
+  }
   function saveToAlbum() {
-    if (!lastCanvas) return;
+    if (!lastCanvas && !lastPairs) return;
     var b = $("#save-album-btn"); if (b) b.disabled = true;
     setStatus("#session-status", "Menyimpan ke album…");
-    lastCanvas.toBlob(function (blob) {
+    clearTimeout(recT);
+    // always the frame that is on the screen right now
+    if (lastPairs) lastCanvas = compose(lastPairs);
+    uploadBlob(lastCanvas).then(function (blob) {
       if (!blob) { if (b) b.disabled = false; return; }
-      fetch("/api/album", { method: "POST", headers: { "Content-Type": "image/png" }, body: blob })
+      fetch("/api/album", { method: "POST", headers: { "Content-Type": blob.type || "image/png" }, body: blob })
         .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { r: r, j: j }; }); })
         .then(function (o) {
           if (o.j && o.j.ok) setStatus("#session-status", "Tersimpan ke album ✓ — buka lewat 'Lihat album'.");
           else if (o.r.status === 503) setStatus("#session-status", "Album belum aktif (KV belum kebind).", true);
+          else if (o.r.status === 413) setStatus("#session-status", "Fotonya kebesaran buat album. Coba tata letak yang lebih kecil.", true);
           else setStatus("#session-status", "Gagal menyimpan ke album.", true);
         })
         .catch(function () { setStatus("#session-status", "Gagal menyimpan ke album.", true); })
         .then(function () { if (b) b.disabled = false; });
-    }, "image/png");
+    });
   }
   function showAlbum() { show("s-album"); loadAlbum(); }
   function loadAlbum() {
@@ -1003,7 +1398,7 @@
       .then(function (r) { return r.ok ? r.json() : null; })
       .catch(function () { return null; })
       .then(function (c) {
-        audio.src = (c && c.song_url) || "audio/side-a.mp3";
+        audio.src = songUrl() || (c && c.song_url) || "audio/side-a.mp3";
         audio.loop = true;
         audio.muted = true;
         audio.play().catch(function () {});
@@ -1023,6 +1418,18 @@
   // ------------------------------------------------------------ wire up
   function init() {
     setupMusic();
+    buildStudio();
+    preloadFonts();
+    paintPress();
+    applyLookToPreview();
+    paintStudio();
+    mountStudio("s-lobby");
+    var resizeT = 0;
+    window.addEventListener("resize", function () {
+      clearTimeout(resizeT);
+      resizeT = setTimeout(function () { measureBox(); pvKick(); thumbsSoon(); }, 120);
+    });
+
     $("#host-btn").addEventListener("click", startHost);
     $("#join-btn").addEventListener("click", function () {
       startJoin(($("#join-code").value || "").toUpperCase().replace(/[^A-Z0-9]/g, ""));
@@ -1036,36 +1443,16 @@
       else { $("#share-link").select(); try { document.execCommand("copy"); done(); } catch (e) {} }
     });
 
-    // look chips
-    var lookRow = document.querySelector(".looks");
-    if (lookRow) {
-      lookRow.innerHTML = Object.keys(LOOKS).map(function (k) {
-        return '<button class="chip" data-look="' + k + '" aria-pressed="' +
-          (k === selectedFilter ? "true" : "false") + '">' + LOOKS[k].name + "</button>";
-      }).join("");
-      lookRow.querySelectorAll(".chip[data-look]").forEach(function (b) {
-        b.addEventListener("click", function () {
-          selectedFilter = b.dataset.look;
-          applyLookToPreview();
-          syncChips();
-          sendDC({ t: "look", v: selectedFilter });
-        });
-      });
-    }
-    document.querySelectorAll(".chip[data-layout]").forEach(function (b) {
-      b.addEventListener("click", function () {
-        selectedLayout = b.dataset.layout;
-        sendDC({ t: "layout", v: selectedLayout });
-        document.querySelectorAll(".chip[data-layout]").forEach(function (x) {
-          x.setAttribute("aria-pressed", x === b ? "true" : "false");
-        });
-      });
-    });
     $("#shoot-btn").addEventListener("click", runSession);
-    $("#retake-btn").addEventListener("click", function () { $("#result").classList.remove("on"); });
+    $("#retake-btn").addEventListener("click", function () {
+      $("#result").classList.remove("on");
+      lastPairs = null; pv.mode = "live"; pv.img = null; pv.pending = false;
+      paintStudio(); pvKick();
+    });
     $("#download-btn").addEventListener("click", function () {
       // the shooter has the PNG original; the other one has the shared copy
       var href, name = "photobox-" + stamp();
+      if (lastPairs) lastCanvas = compose(lastPairs);
       if (lastCanvas) { href = lastCanvas.toDataURL("image/png"); name += ".png"; }
       else if (lastBlob) { href = rxUrl; name += lastMime === "image/png" ? ".png" : ".jpg"; }
       else return;
@@ -1076,6 +1463,18 @@
     $("#save-album-btn").addEventListener("click", saveToAlbum);
     $("#open-album").addEventListener("click", showAlbum);
 
+    // the lobby can set the strip up before there is a room at all
+    var lsb = $("#lobby-studio-btn");
+    if (lsb) lsb.addEventListener("click", function () {
+      var slot = document.querySelector('.studio-slot[data-slot="lobby"]');
+      if (!slot) return;
+      slot.hidden = !slot.hidden;
+      lsb.setAttribute("aria-expanded", slot.hidden ? "false" : "true");
+      lsb.textContent = slot.hidden ? "✎ Atur bingkai dulu" : "✕ Tutup pengaturan bingkai";
+      mountStudio("s-lobby");
+      if (!slot.hidden && slot.scrollIntoView) slot.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
     /* A ROOM YOU CAN WALK OUT OF.
        Making one was a one-way door: the only way back to the lobby was
        reloading the page. Cancelling also hands the camera back, which matters
@@ -1085,6 +1484,8 @@
     });
     function leave(msg) {
       cleanup(); dropCam();
+      $("#result").classList.remove("on");
+      lastPairs = null; pv.mode = "live"; pv.img = null; pv.pending = false;
       show("s-lobby");
       setStatus("#lobby-status", msg);
     }
@@ -1109,7 +1510,6 @@
       var b = $("#album-back");
       if (b && home) b.textContent = "← " + fromName();
     })();
-    paintPress();
 
     // shared invite link: /photobox#CODE -> prefill the join field
     var h = (location.hash || "").replace(/^#/, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -1118,6 +1518,19 @@
       setStatus("#lobby-status", "Kode terisi dari tautan. Tap Gabung buat mulai.");
       $("#join-btn").classList.add("solid");
     }
+
+    // for QA, not for her: drive the studio and fake a finished shot without cameras
+    window.__pbStudio = {
+      get: function () { return studio; },
+      set: function (o) { setStudio(o); },
+      pv: pv,
+      result: function (pairs) {
+        lastPairs = pairs; shotAt = new Date();
+        lastCanvas = compose(pairs); lastBlob = null;
+        pv.mode = "result"; pvKick(); resultUI(false);
+        return { w: lastCanvas.width, h: lastCanvas.height };
+      }
+    };
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
