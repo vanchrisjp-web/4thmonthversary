@@ -36,6 +36,11 @@
     { id: "belah", name: "Satu frame", note: "dibelah dua · 1 jepretan" },
     { id: "jendela", name: "Jendela kecil", note: "satu besar, satu kecil" },
     { id: "polaroid", name: "Polaroid", note: "dua lembar · 1 jepretan" },
+    // Kalung 26 (her birthday, 11 Oct 2026): the romantic ones, available to every pressing
+    { id: "hati", name: "Satu hati", note: "berdua di satu hati · 1 jepretan" },
+    { id: "duahati", name: "Dua hati", note: "satu hati tiap orang · 1 jepretan" },
+    { id: "cincin", name: "Dua cincin", note: "dua lingkaran bertaut · 1 jepretan" },
+    { id: "kolase", name: "Kolase kenangan", note: "foto berserakan · 3 jepretan" },
     { id: "kustom", name: "Kustom", note: "atur sendiri" }
   ];
   var LAYOUT_IDS = LAYOUTS.map(function (l) { return l.id; });
@@ -61,9 +66,12 @@
     lebar:  { name: "Lebar", family: "'Mona Sans', 'Helvetica Neue', Arial, sans-serif", weight: 800, style: "normal", upper: false, track: -0.01, k: 1.05, est: 0.56, nudge: 0.04 },
     mesin:  { name: "Mesin ketik", family: "'IBM Plex Mono', 'Space Mono', monospace", weight: 600, style: "normal", upper: true, track: 0.06, k: 0.9, est: 0.66, nudge: 0.04 },
     anggun: { name: "Anggun", family: "'Fraunces', Georgia, serif", weight: 500, style: "italic", upper: false, track: 0, k: 1.12, est: 0.5, nudge: 0.02 },
-    tangan: { name: "Tulisan tangan", family: "'Caveat', 'Segoe Print', cursive", weight: 700, style: "normal", upper: false, track: 0, k: 1.45, est: 0.42, nudge: 0 }
+    tangan: { name: "Tulisan tangan", family: "'Caveat', 'Segoe Print', cursive", weight: 700, style: "normal", upper: false, track: 0, k: 1.45, est: 0.42, nudge: 0 },
+    // the birthday's two: its display face's italic, and a calligraphic script
+    romantis: { name: "Romantis", family: "'Instrument Serif', Georgia, serif", weight: 400, style: "italic", upper: false, track: 0, k: 1.28, est: 0.42, nudge: 0.03 },
+    sambung: { name: "Sambung", family: "'Ballet', 'Instrument Serif', Georgia, serif", weight: 400, style: "normal", upper: false, track: 0, k: 1.55, est: 0.5, nudge: 0.1 }
   };
-  var HURUF_ORDER = ["tegas", "lebar", "mesin", "anggun", "tangan"];
+  var HURUF_ORDER = ["tegas", "lebar", "mesin", "anggun", "tangan", "romantis", "sambung"];
 
   /* The frames. `pakai` is what choosing the frame sets -- but only for values
      still at the previous frame's own setting, so a thickness you dragged
@@ -99,19 +107,65 @@
       line: "rgba(27,26,21,0.12)", rule: "rgba(27,26,21,0.12)", mono: "'IBM Plex Mono', monospace",
       decor: "", pakai: { tebal: 34, jarak: 22, sudut: 0, huruf: "lebar" }
     },
+    /* Kalung 26, her birthday: six romantic papers. Their small print is the
+       display face's italic (metaStyle), not a mono. */
+    kalung26: {
+      name: "Kalung 26", paper: "#1E0807", ink: "#F4F0EB", soft: "rgba(244,240,235,0.62)", accent: "#E0503C", moss: "#D8B47A",
+      line: "rgba(216,180,122,0.6)", rule: "rgba(216,180,122,0.3)", mono: "'Instrument Serif', Georgia, serif", metaStyle: "italic",
+      decor: "kalung", pakai: { tebal: 34, jarak: 16, sudut: 10, huruf: "romantis" }
+    },
+    mawar: {
+      name: "Mawar", paper: "#F7E6E1", ink: "#5A1414", soft: "rgba(90,20,20,0.6)", accent: "#C0392B", moss: "#4F6B45",
+      line: "rgba(90,20,20,0.32)", rule: "rgba(90,20,20,0.18)", mono: "'Instrument Serif', Georgia, serif", metaStyle: "italic",
+      decor: "mawar", pakai: { tebal: 32, jarak: 14, sudut: 14, huruf: "romantis" }
+    },
+    surat: {
+      name: "Surat cinta", paper: "#F3EADB", ink: "#3B2A20", soft: "rgba(59,42,32,0.6)", accent: "#B8321F", moss: "#27407A",
+      line: "rgba(59,42,32,0.28)", rule: "rgba(59,42,32,0.18)", mono: "'Instrument Serif', Georgia, serif", metaStyle: "italic",
+      decor: "surat", pakai: { tebal: 40, jarak: 14, sudut: 4, huruf: "sambung" }
+    },
+    langit: {
+      name: "Langit malam", paper: "#0E1024", ink: "#F4F0EB", soft: "rgba(244,240,235,0.6)", accent: "#F3DCAA", moss: "#8C9CD8",
+      line: "rgba(243,220,170,0.4)", rule: "rgba(243,220,170,0.22)", mono: "'Instrument Serif', Georgia, serif", metaStyle: "italic",
+      decor: "langit", pakai: { tebal: 32, jarak: 12, sudut: 8, huruf: "romantis" }
+    },
+    pesta: {
+      name: "Ulang tahun", paper: "#FBF3E8", ink: "#2A1A14", soft: "rgba(42,26,20,0.58)", accent: "#E0503C", moss: "#C99A4E",
+      line: "rgba(42,26,20,0.2)", rule: "rgba(42,26,20,0.15)", mono: "'Instrument Serif', Georgia, serif", metaStyle: "italic",
+      decor: "pesta", pakai: { tebal: 32, jarak: 14, sudut: 10, huruf: "sambung" }
+    },
+    hati: {
+      name: "Penuh hati", paper: "#FBE4E7", ink: "#6B1A2A", soft: "rgba(107,26,42,0.58)", accent: "#E0503C", moss: "#B8321F",
+      line: "rgba(107,26,42,0.25)", rule: "rgba(107,26,42,0.16)", mono: "'Instrument Serif', Georgia, serif", metaStyle: "italic",
+      decor: "hati", pakai: { tebal: 30, jarak: 12, sudut: 18, huruf: "romantis" }
+    },
     none: {
       name: "Tanpa bingkai", paper: "", ink: "#FFFDF8", soft: "rgba(255,253,248,0.82)", accent: "#FFB199",
       line: "", rule: "", mono: "'IBM Plex Mono', 'Space Mono', monospace", decor: "", pakai: null
     }
   };
-  var FRAME_ORDER = ["ladang", "sisia", "kafe", "salju", "film", "putih", "none"];
+  var FRAME_ORDER = ["ladang", "sisia", "kafe", "salju", "film", "putih", "kalung26", "mawar", "surat", "langit", "pesta", "hati", "none"];
+  var ROMANTIS = ["kalung26", "mawar", "surat", "langit", "pesta", "hati"];
+  // which frames and layouts a pressing shows first (its own, then the rest)
+  function frameOrder(press) {
+    if (press !== "026") return FRAME_ORDER.slice();
+    return ROMANTIS.concat(FRAME_ORDER.filter(function (id) { return ROMANTIS.indexOf(id) < 0; }));
+  }
+  function layoutOrder(press) {
+    if (press !== "026") return LAYOUTS.slice();
+    var first = ["hati", "duahati", "cincin", "kolase", "polaroid", "strip", "side"];
+    return first.map(function (id) { return LAYOUTS[LAYOUT_IDS.indexOf(id)]; })
+      .concat(LAYOUTS.filter(function (l) { return first.indexOf(l.id) < 0; }));
+  }
 
   var WARNA = ["#EDE8DC", "#FFFFFF", "#F4C9D4", "#C9DDF0", "#DCE6C8", "#3E4B33", "#B5502C", "#1B1A15"];
 
   var PRESS = {
     "004": { name: "Sisi A", bulan: "Empat bulan", tgl: "17.07.2026" },
     "005": { name: "Kafe Malam", bulan: "Lima bulan", tgl: "17.08.2026" },
-    "006": { name: "Ladang Bunga", bulan: "Enam bulan", tgl: "17.09.2026" }
+    "006": { name: "Ladang Bunga", bulan: "Enam bulan", tgl: "17.09.2026" },
+    // not a monthly pressing: her birthday, walked in from kalung26 (?press=026)
+    "026": { name: "Kalung 26", bulan: "Dua puluh enam", tgl: "11.10.2026" }
   };
 
   var DEF = {
@@ -191,6 +245,13 @@
       o.sudut = FRAMES.ladang.pakai.sudut; o.huruf = FRAMES.ladang.pakai.huruf;
       o.teks = "Kamu ✿ Aku";
     }
+    if (press === "026") {
+      // her birthday walks in wearing its own night red, the two of you in one heart
+      var K = FRAMES.kalung26.pakai;
+      o.frame = "kalung26"; o.layout = "hati";
+      o.tebal = K.tebal; o.jarak = K.jarak; o.sudut = K.sudut; o.huruf = K.huruf;
+      o.teks = "Selamat ulang tahun, Sayang ♥";
+    }
     return o;
   }
 
@@ -206,6 +267,10 @@
   }
 
   function presets(press) {
+    if (press === "026") {
+      return ["Selamat ulang tahun, Sayang ♥", "Happy Beloved Birthday ♥", "Kamu ♥ Aku", "Dua puluh enam ♥",
+        "Tokyo ♥ Bandung", "Kalung 26 · 11.10.2026", "Sampai ketemu di 27", "11.10.2026"];
+    }
     var P = PRESS[press] || { name: "Photobox", bulan: "", tgl: "" };
     return [
       "Kamu ♥ Aku",
@@ -308,6 +373,56 @@
           inset: Math.max(5, Math.min(18, Math.round((none ? 14 : o.tebal) * 0.45))) });
       }
       H = y0 + ch + B + bd.bot;
+    } else if (o.layout === "hati" || o.layout === "duahati" || o.layout === "cincin") {
+      /* THE ROMANTIC SHAPES (Kalung 26). A picture can be cut to a shape:
+         `shape` is "hati" (the page's heart, 22 wide by 20 high) or "bulat" (a
+         circle). "Satu hati" is one heart split down the middle, you in one
+         half and her in the other (`box` is the whole heart, each cell its
+         half); "Dua hati" is a heart each; "Dua cincin" two rings that overlap,
+         the second drawn over the first with a band of paper round it. The
+         ratio does not apply: the shape is the frame. */
+      if (o.layout === "hati") {
+        kind = "hati";
+        var hw = px(900 * k), hh = px(hw / 1.1), half = px(hw / 2);
+        W = 2 * B + hw; bd = bands(o, W); y0 = bd.top ? Math.max(bd.top, B) : B;
+        var heart = { x: B, y: y0, w: hw, h: hh };
+        cells.push({ x: B, y: y0, w: half, h: hh, shot: 0, who: sw("a"), shape: "hati", box: heart, lead: true });
+        cells.push({ x: B + half, y: y0, w: hw - half, h: hh, shot: 0, who: sw("b"), shape: "hati", box: heart });
+        seam = none ? 0 : Math.max(3, Math.round(G * 0.5));
+        H = y0 + hh + B + bd.bot;
+      } else if (o.layout === "duahati") {
+        kind = "duahati";
+        var dw = px(560 * k), dh = px(dw / 1.1), dg = Math.max(G, px(dw * 0.03)), drop2 = px(dw * 0.07);
+        W = 2 * B + 2 * dw + dg; bd = bands(o, W); y0 = bd.top ? Math.max(bd.top, B) : B;
+        cells.push({ x: B, y: y0, w: dw, h: dh, shot: 0, who: sw("a"), shape: "hati" });
+        cells.push({ x: B + dw + dg, y: y0 + drop2, w: dw, h: dh, shot: 0, who: sw("b"), shape: "hati" });
+        H = y0 + dh + drop2 + B + bd.bot;
+      } else {
+        kind = "cincin";
+        var D = px(620 * k), ov = px(D * 0.16);
+        W = 2 * B + 2 * D - ov; bd = bands(o, W); y0 = bd.top ? Math.max(bd.top, B) : B;
+        cells.push({ x: B, y: y0, w: D, h: D, shot: 0, who: sw("a"), shape: "bulat" });
+        cells.push({ x: B + D - ov, y: y0, w: D, h: D, shot: 0, who: sw("b"), shape: "bulat", ring: Math.max(5, Math.round((none ? 10 : G) * 0.55)) });
+        H = y0 + D + B + bd.bot;
+      }
+    } else if (o.layout === "kolase") {
+      /* COLLAGE: three shots as six prints tossed on the paper, each tilted a
+         little, you above and her below in every column. The prints are cards
+         (like the polaroid's), so they tilt and cast a shadow; the frame's
+         caption and date keep their band. */
+      kind = "kolase";
+      var P0 = px(360 * k), ph2 = px(P0 * r), bp = px(P0 * 0.05), cw3 = P0 + 2 * bp, ch3 = ph2 + 2 * bp;
+      var gx = px(P0 * 0.1), gy = px(P0 * 0.08), edge2 = Math.max(B, px(P0 * 0.16));
+      var ROT = [[-5, 3.5], [3, -4], [-2.5, 4.5]], JX = [[-0.03, 0.04], [0.03, -0.02], [-0.02, 0.03]], JY = [[0.02, -0.03], [-0.03, 0.02], [0.03, -0.02]];
+      W = 2 * edge2 + 3 * cw3 + 2 * gx; bd = bands(o, W); y0 = bd.top ? Math.max(bd.top, edge2) : edge2;
+      for (var col2 = 0; col2 < 3; col2++) {
+        for (var row2 = 0; row2 < 2; row2++) {
+          var cx0 = edge2 + col2 * (cw3 + gx) + px(JX[col2][row2] * P0), cy0 = y0 + row2 * (ch3 + gy) + px(JY[col2][row2] * P0);
+          cells.push({ x: cx0 + bp, y: cy0 + bp, w: P0, h: ph2, shot: col2, who: sw(row2 ? "b" : "a"),
+            rot: ROT[col2][row2], card: { x: cx0, y: cy0, w: cw3, h: ch3 } });
+        }
+      }
+      H = y0 + 2 * ch3 + gy + px(P0 * 0.06) + edge2 + bd.bot;
     } else if (o.layout === "polaroid") {
       kind = "polaroid";
       var pw = px(440 * k), ph = px(pw * r), cp = px(pw * 0.06), cb = px(pw * 0.24);
@@ -370,7 +485,7 @@
     var F = FRAMES[o.frame];
     if (o.frame === "none") {
       return { paper: "", ink: F.ink, soft: F.soft, accent: F.accent, moss: F.ink, line: "", rule: "",
-        hole: "#35312C", holeInk: "#554E46", dark: true, mono: F.mono };
+        hole: "#35312C", holeInk: "#554E46", dark: true, mono: F.mono, metaStyle: "" };
     }
     var paper = o.warna || F.paper, dark = lum(paper) < 0.3, own = !!o.warna;
     var ink = own ? (dark ? "#F4F0E6" : "#1B1A15") : F.ink;
@@ -385,7 +500,7 @@
       rule: own ? (dark ? "rgba(244,240,230,0.22)" : "rgba(27,26,21,0.22)") : F.rule,
       hole: mix(paper, dark ? "#FFFFFF" : "#000000", 0.1),
       holeInk: mix(paper, dark ? "#FFFFFF" : "#000000", 0.24),
-      dark: dark, mono: F.mono
+      dark: dark, mono: F.mono, metaStyle: F.metaStyle || ""
     };
   }
 
@@ -469,6 +584,36 @@
     g.fill();
   }
 
+  /* The heart (the same one the birthday site draws), fitted to a box 22 wide
+     by 20 high. `fresh === false` adds it to the current path (for a clip). */
+  function heartPath(g, x, y, w, h, fresh) {
+    var sx = w / 22, sy = h / 20;
+    var X = function (v) { return x + (v - 1) * sx; }, Y = function (v) { return y + (v - 1.2) * sy; };
+    if (fresh !== false) g.beginPath();
+    g.moveTo(X(12), Y(21.2));
+    g.bezierCurveTo(X(5.3), Y(16.3), X(1), Y(12.3), X(1), Y(7.5));
+    g.bezierCurveTo(X(1), Y(3.9), X(3.8), Y(1.2), X(7.2), Y(1.2));
+    g.bezierCurveTo(X(9.2), Y(1.2), X(11), Y(2.2), X(12), Y(3.8));
+    g.bezierCurveTo(X(13), Y(2.2), X(14.8), Y(1.2), X(16.8), Y(1.2));
+    g.bezierCurveTo(X(20.2), Y(1.2), X(23), Y(3.9), X(23), Y(7.5));
+    g.bezierCurveTo(X(23), Y(12.3), X(18.7), Y(16.3), X(12), Y(21.2));
+    g.closePath();
+  }
+  // a small heart s wide, centred on x, y (decoration)
+  function heartAt(g, x, y, s) { heartPath(g, x - s / 2, y - s * 0.46, s, s / 1.1); }
+  // a shaped picture's outline, inset by d (the heart's whole box for a half of it)
+  function shapePath(g, c, d, fresh) {
+    d = d || 0;
+    var b = c.box || c;
+    if (c.shape === "hati") heartPath(g, b.x + d, b.y + d, b.w - 2 * d, b.h - 2 * d, fresh);
+    else {
+      if (fresh !== false) g.beginPath();
+      g.moveTo(b.x + b.w - d, b.y + b.h / 2);
+      g.arc(b.x + b.w / 2, b.y + b.h / 2, Math.max(0.5, Math.min(b.w, b.h) / 2 - d), 0, Math.PI * 2);
+      g.closePath();
+    }
+  }
+
   // the outline of every picture, and the corners of a tilted card
   function corners(c) {
     var cd = c.card, cx = cd.x + cd.w / 2, cy = cd.y + cd.h / 2, a = c.rot * Math.PI / 180;
@@ -495,6 +640,8 @@
       if (c.card) {
         var q = corners(c);
         g.moveTo(q[0][0], q[0][1]); g.lineTo(q[1][0], q[1][1]); g.lineTo(q[2][0], q[2][1]); g.lineTo(q[3][0], q[3][1]); g.closePath();
+      } else if (c.shape) {
+        if (!c.box || c.lead) shapePath(g, c, 0, false);
       } else g.rect(c.x, c.y, c.w, c.h);
     });
     g.clip("evenodd");
@@ -577,6 +724,181 @@
     }
   };
 
+  /* The six romantic papers (Kalung 26). Drawn, like the rest, from seeded
+     randomness, so a strip always prints the same way. */
+  var MANIK = ["#D98A1C", "#E8C547", "#E07A2F", "#B3202B", "#D9707E", "#B89AD6", "#6C4A9E", "#6FB3E0", "#3FA6A0", "#7F8F3A", "#EFE6D8"];
+  function manik(g, x, y, r, col) {
+    g.fillStyle = col; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "rgba(255,255,255,0.42)"; g.beginPath(); g.arc(x - r * 0.3, y - r * 0.32, r * 0.34, 0, Math.PI * 2); g.fill();
+  }
+  function quadAt(x0, y0, cx, cy, x1, y1, t) {
+    var u = 1 - t;
+    return [u * u * x0 + 2 * u * t * cx + t * t * x1, u * u * y0 + 2 * u * t * cy + t * t * y1];
+  }
+  var DECOR_ROMANTIS = {
+    /* Her necklace, strung round the frame: a gold cord with beads in the
+       necklace's own colours across the top (sagging a little, a heart hanging
+       from its middle) and down both sides; gold hearts in the top corners. */
+    kalung: function (g, p, pal, R) {
+      var b = bbox(p), mL = b.x, mR = p.W - b.x2, mT = b.y;
+      var r = Math.max(3, Math.min(9, Math.min(mL, mR) * 0.2));
+      var step = r * 2.9, pick = function () { return MANIK[Math.floor(R() * MANIK.length)]; };
+      g.strokeStyle = pal.moss; g.lineWidth = Math.max(1, r * 0.22); g.lineCap = "round";
+      if (mT >= 14) {
+        var yT = mT * 0.46, sag = Math.min(mT * 0.3, 16), x0 = mL * 0.5, x1 = p.W - mR * 0.5;
+        g.beginPath(); g.moveTo(x0, yT); g.quadraticCurveTo(p.W / 2, yT + sag * 2, x1, yT); g.stroke();
+        var n = Math.max(6, Math.floor((x1 - x0) / step));
+        for (var i = 0; i <= n; i++) {
+          var t = i / n;
+          if (p.top && t > 0.18 && t < 0.82) continue;        // never under a caption
+          var q = quadAt(x0, yT, p.W / 2, yT + sag * 2, x1, yT, t);
+          manik(g, q[0], q[1], r, pick());
+        }
+        if (!p.top) {
+          var hc = quadAt(x0, yT, p.W / 2, yT + sag * 2, x1, yT, 0.5);
+          g.fillStyle = pal.moss; heartAt(g, hc[0], hc[1] + r * 2.4, r * 3); g.fill();
+        }
+      }
+      [[mL * 0.5, mL], [p.W - mR * 0.5, mR]].forEach(function (sd) {
+        if (sd[1] < 14) return;
+        g.beginPath(); g.moveTo(sd[0], b.y); g.lineTo(sd[0], b.y2); g.stroke();
+        for (var y = b.y + step * 0.5; y < b.y2 - r; y += step) manik(g, sd[0], y, r, pick());
+      });
+      if (mT >= 14 && Math.min(mL, mR) >= 14) {
+        g.fillStyle = pal.moss;
+        heartAt(g, mL * 0.5, mT * 0.46, r * 2.2); g.fill();
+        heartAt(g, p.W - mR * 0.5, mT * 0.46, r * 2.2); g.fill();
+      }
+    },
+    /* Roses: one tucked into each top corner with its leaves, and petals
+       scattered down the margins. */
+    mawar: function (g, p, pal, R) {
+      var b = bbox(p), u = Math.max(10, Math.min(46, Math.min(b.x, p.W - b.x2, b.y || 99) * 0.9 + 6));
+      var dark = mix(pal.accent, "#000000", 0.35);
+      var rose = function (x, y, s) {
+        g.fillStyle = pal.accent; g.beginPath(); g.arc(x, y, s, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = dark; g.lineWidth = Math.max(1, s * 0.12); g.lineCap = "round";
+        for (var i = 0; i < 4; i++) {
+          var rr = s * (0.82 - i * 0.2), a0 = R() * 6.28;
+          g.beginPath(); g.arc(x + (R() - 0.5) * s * 0.12, y + (R() - 0.5) * s * 0.12, Math.max(0.5, rr), a0, a0 + 4.4); g.stroke();
+        }
+      };
+      if (b.y >= 14 && Math.min(b.x, p.W - b.x2) >= 10) {
+        [[Math.max(u * 0.6, b.x * 0.55), b.y * 0.55, 1], [p.W - Math.max(u * 0.6, (p.W - b.x2) * 0.55), b.y * 0.55, -1]].forEach(function (q) {
+          g.fillStyle = pal.moss;
+          petal(g, q[0], q[1], u * 1.5, u * 0.5, q[2] > 0 ? 0.45 : Math.PI - 0.45);
+          petal(g, q[0], q[1], u * 1.2, u * 0.42, q[2] > 0 ? 1.45 : Math.PI - 1.45);
+          rose(q[0], q[1], u * 0.62);
+        });
+      }
+      scatter(p, R, function (x, y, s, i) {
+        if (i % 4 === 0) rose(x, y, s * 0.42);
+        else { g.fillStyle = i % 2 ? pal.accent : "rgba(192,57,43,0.5)"; petal(g, x, y, s * 0.9, s * 0.42, R() * 6.28); }
+      }, 6);
+    },
+    /* A love letter across two cities: the airmail border (red and blue on the
+       slant), a stamp with a heart in the top right under a postmark, and a
+       wax heart sealing the top left. */
+    surat: function (g, p, pal, R) {
+      var b = bbox(p), band = Math.min(14, Math.max(0, Math.min(b.x, p.W - b.x2, b.y || 99) * 0.34));
+      if (band >= 4) {
+        g.save();
+        g.beginPath(); g.rect(0, 0, p.W, p.H); g.rect(band, band, p.W - 2 * band, p.H - 2 * band); g.clip("evenodd");
+        var st = band * 2.4;
+        for (var x = 0, i = 0; x < p.W + p.H; x += st, i++) {
+          if (i % 2) continue;
+          g.fillStyle = i % 4 ? "#2A3F7A" : "#B8321F";
+          g.beginPath(); g.moveTo(x, 0); g.lineTo(x + st, 0); g.lineTo(x + st - p.H, p.H); g.lineTo(x - p.H, p.H); g.closePath(); g.fill();
+        }
+        g.restore();
+      }
+      var mR = p.W - b.x2, m = Math.min(mR, b.y);
+      if (m >= 30 && !p.top) {
+        var sw2 = m * 0.62, sh2 = sw2 * 1.2, sx = p.W - mR / 2 - sw2 / 2, sy = b.y / 2 - sh2 / 2;
+        g.fillStyle = "#FBF6EE"; g.fillRect(sx, sy, sw2, sh2);
+        g.fillStyle = pal.paper;
+        for (var k2 = 0; k2 <= 6; k2++) {
+          var t2 = k2 / 6;
+          [[sx + t2 * sw2, sy], [sx + t2 * sw2, sy + sh2], [sx, sy + t2 * sh2], [sx + sw2, sy + t2 * sh2]].forEach(function (q) {
+            g.beginPath(); g.arc(q[0], q[1], sw2 * 0.045, 0, Math.PI * 2); g.fill();
+          });
+        }
+        g.fillStyle = pal.accent; heartAt(g, sx + sw2 / 2, sy + sh2 / 2, sw2 * 0.5); g.fill();
+        g.strokeStyle = pal.soft; g.lineWidth = Math.max(1, sw2 * 0.03);
+        g.beginPath(); g.arc(sx - sw2 * 0.05, sy + sh2 * 0.62, sw2 * 0.42, 0, Math.PI * 2); g.stroke();
+        for (var w2 = 0; w2 < 3; w2++) {
+          var yy = sy + sh2 * (0.46 + w2 * 0.14);
+          g.beginPath(); g.moveTo(sx - sw2 * 1.4, yy);
+          g.bezierCurveTo(sx - sw2 * 1.1, yy - sw2 * 0.1, sx - sw2 * 0.8, yy + sw2 * 0.1, sx - sw2 * 0.5, yy); g.stroke();
+        }
+      }
+      var mL = b.x, m2 = Math.min(mL, b.y);
+      if (m2 >= 26 && !p.top) {
+        var cx = mL / 2, cy = b.y / 2, s2 = m2 * 0.72;
+        g.fillStyle = mix(pal.accent, "#000000", 0.2); g.beginPath(); g.arc(cx, cy, s2 * 0.5, 0, Math.PI * 2); g.fill();
+        g.fillStyle = pal.accent; heartAt(g, cx, cy, s2 * 0.52); g.fill();
+      }
+    },
+    /* Night sky: stars and their dust down the margins, a crescent moon in the
+       top right, and a small heart of stars in the top left. */
+    langit: function (g, p, pal, R) {
+      scatter(p, R, function (x, y, s, i) {
+        if (i % 3 === 0) sparkle(g, x, y, s * 0.55, pal.accent);
+        else { g.fillStyle = i % 3 === 1 ? "rgba(244,240,235,0.85)" : pal.moss; g.beginPath(); g.arc(x, y, Math.max(1, s * (0.08 + R() * 0.08)), 0, Math.PI * 2); g.fill(); }
+      }, 2.6);
+      var b = bbox(p), mR = p.W - b.x2, m = Math.min(mR, b.y);
+      if (m >= 16 && !p.top) {
+        var cx = p.W - mR / 2, cy = b.y / 2, r = m * 0.3;
+        g.fillStyle = pal.accent; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
+        g.fillStyle = pal.paper; g.beginPath(); g.arc(cx + r * 0.42, cy - r * 0.28, r * 0.86, 0, Math.PI * 2); g.fill();
+      }
+      var mL = b.x, m2 = Math.min(mL, b.y);
+      if (m2 >= 20 && !p.top) {
+        var hx = mL / 2, hy = b.y / 2, hs = m2 * 0.34, pts = [];
+        for (var i2 = 0; i2 < 8; i2++) {
+          var t = i2 / 8 * Math.PI * 2, x = 16 * Math.pow(Math.sin(t), 3), y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+          pts.push([hx + x / 16 * hs, hy - (y + 2.5) / 16 * hs]);
+        }
+        g.strokeStyle = pal.rule; g.lineWidth = 1;
+        g.beginPath(); pts.forEach(function (q, j) { if (j) g.lineTo(q[0], q[1]); else g.moveTo(q[0], q[1]); }); g.closePath(); g.stroke();
+        pts.forEach(function (q) { g.fillStyle = pal.accent; g.beginPath(); g.arc(q[0], q[1], Math.max(1, hs * 0.07), 0, Math.PI * 2); g.fill(); });
+      }
+    },
+    /* A party: bunting across the top (never under a caption) and confetti,
+       some of it hearts, in the margins. */
+    pesta: function (g, p, pal, R) {
+      var b = bbox(p), COL = ["#E0503C", "#D8B47A", "#6FB3E0", "#3FA6A0", "#D9707E", "#E8C547", "#6C4A9E"];
+      if (b.y >= 18 && !p.top) {
+        var y0 = b.y * 0.2, sag = b.y * 0.16, fw = Math.min(b.y * 0.36, 28), n = Math.max(4, Math.floor(p.W / (fw * 1.35)));
+        g.strokeStyle = pal.soft; g.lineWidth = Math.max(1, fw * 0.06);
+        g.beginPath(); g.moveTo(0, y0); g.quadraticCurveTo(p.W / 2, y0 + sag * 2, p.W, y0); g.stroke();
+        for (var i = 0; i < n; i++) {
+          var q = quadAt(0, y0, p.W / 2, y0 + sag * 2, p.W, y0, (i + 0.5) / n);
+          g.fillStyle = COL[i % COL.length];
+          g.beginPath(); g.moveTo(q[0] - fw / 2, q[1]); g.lineTo(q[0] + fw / 2, q[1]); g.lineTo(q[0], q[1] + fw * 1.05); g.closePath(); g.fill();
+        }
+      }
+      scatter(p, R, function (x, y, s, i) {
+        g.fillStyle = COL[i % COL.length];
+        if (i % 3 === 0) { g.beginPath(); g.arc(x, y, Math.max(1, s * 0.18), 0, Math.PI * 2); g.fill(); }
+        else if (i % 3 === 1) { g.save(); g.translate(x, y); g.rotate(R() * 3.14); g.fillRect(-s * 0.3, -s * 0.09, s * 0.6, s * 0.18); g.restore(); }
+        else { heartAt(g, x, y, s * 0.55); g.fill(); }
+      }, 2.8);
+    },
+    /* Hearts, filled and outlined, big and small, all down the margins. */
+    hati: function (g, p, pal, R) {
+      scatter(p, R, function (x, y, s, i) {
+        var sz = s * (0.7 + R() * 0.6);
+        g.save(); g.translate(x, y); g.rotate((R() - 0.5) * 0.6); g.translate(-x, -y);
+        heartAt(g, x, y, sz);
+        if (i % 3 === 2) { g.strokeStyle = pal.ink; g.lineWidth = Math.max(1, sz * 0.08); g.stroke(); }
+        else { g.fillStyle = i % 3 ? pal.moss : pal.accent; g.fill(); }
+        g.restore();
+      }, 3);
+    }
+  };
+  Object.keys(DECOR_ROMANTIS).forEach(function (k) { DECOR[k] = DECOR_ROMANTIS[k]; });
+
   // ------------------------------------------------------------------ type
   var GLYPH = /([♥✿])/;
   function setFont(g, H, size) {
@@ -608,8 +930,8 @@
     if ("letterSpacing" in g) g.letterSpacing = "0px";
     return size;
   }
-  function metaFont(g, size, family) {
-    g.font = "400 " + size.toFixed(1) + "px " + family;
+  function metaFont(g, size, family, style) {
+    g.font = (style ? style + " " : "") + "400 " + size.toFixed(1) + "px " + family;
     if ("letterSpacing" in g) g.letterSpacing = "0px";
   }
   function bar(g, x, y, w, h, col) { g.fillStyle = col; rrect(g, x, y, w, h, h / 2); g.fill(); }
@@ -643,11 +965,11 @@
     g.textBaseline = "middle";
     var dw = 0, sw = 0;
     if (date) {
-      metaFont(g, bd.meta, pal.mono); g.fillStyle = pal.ink; g.textAlign = "left";
+      metaFont(g, bd.meta * (pal.metaStyle ? 1.3 : 1), pal.mono, pal.metaStyle); g.fillStyle = pal.ink; g.textAlign = "left";
       g.fillText(date, pad, metaY); dw = g.measureText(date).width;
     }
     if (stamp) {
-      metaFont(g, 12 * S, pal.mono); g.fillStyle = pal.soft; g.textAlign = "right";
+      metaFont(g, 12 * S * (pal.metaStyle ? 1.3 : 1), pal.mono, pal.metaStyle); g.fillStyle = pal.soft; g.textAlign = "right";
       g.fillText(stamp, W - pad, metaY); sw = g.measureText(stamp).width;
     }
     if (cap && o.posisi === "bawah") {
@@ -736,8 +1058,8 @@
       var meta = Math.max(10, lipH * 0.15);
       g.textAlign = "center"; g.textBaseline = "middle";
       var date = o.tanggal ? String(env.date || "") : "", stamp = o.cap ? String(env.press || "") : "";
-      if (date) { metaFont(g, meta, pal.mono); g.fillStyle = ink; g.fillText(date, cx, lipY + lipH * (stamp ? 0.4 : 0.5)); }
-      if (stamp) { metaFont(g, meta * 0.85, pal.mono); g.fillStyle = soft; g.fillText(stamp, cx, lipY + lipH * (date ? 0.68 : 0.5)); }
+      if (date) { metaFont(g, meta, pal.mono, pal.metaStyle); g.fillStyle = ink; g.fillText(date, cx, lipY + lipH * (stamp ? 0.4 : 0.5)); }
+      if (stamp) { metaFont(g, meta * 0.85, pal.mono, pal.metaStyle); g.fillStyle = soft; g.fillText(stamp, cx, lipY + lipH * (date ? 0.68 : 0.5)); }
     }
   }
   /* A layer the size of a rectangle of the plan, in real pixels (env.scale),
@@ -901,7 +1223,17 @@
       g.restore();
     }
     var bx = c.x, bw = c.w;
-    if (c.part) {
+    if (c.ring) {
+      // the second ring: a band of paper round it, so the two rings read as two
+      g.save(); g.fillStyle = pal.paper || "#0E0D0C";
+      g.beginPath(); g.arc(c.x + c.w / 2, c.y + c.h / 2, c.w / 2 + c.ring, 0, Math.PI * 2); g.fill();
+      g.restore();
+    }
+    if (c.shape) {
+      // cut to its shape (and, for half a heart, to its own half)
+      g.save(); shapePath(g, c, 0); g.clip();
+      if (c.box) { g.beginPath(); g.rect(c.x, c.y, c.w, c.h); g.clip(); }
+    } else if (c.part) {
       // one photograph cut on a slant: each half is covered into its own side
       var slant = c.w * 0.07, mid = c.x + c.w / 2;
       bw = c.w / 2 + slant;
@@ -922,11 +1254,13 @@
     if (o.garis && pal.line && !c.part && !c.card) {
       g.strokeStyle = pal.line; g.lineWidth = Math.max(1.5, p.W / 560);
       var lw = g.lineWidth / 2;
-      rrect(g, c.x + lw, c.y + lw, c.w - 2 * lw, c.h - 2 * lw, Math.max(0, R - lw)); g.stroke();
+      if (c.shape) { if (!c.box || c.lead) { shapePath(g, c, lw); g.stroke(); } }
+      else { rrect(g, c.x + lw, c.y + lw, c.w - 2 * lw, c.h - 2 * lw, Math.max(0, R - lw)); g.stroke(); }
     }
-    if (env.hot === c.shot && env.hot >= 0) {
+    if (env.hot === c.shot && env.hot >= 0 && (!c.box || c.lead)) {
       g.strokeStyle = pal.accent || "#FF4A7D"; g.lineWidth = Math.max(4, p.W * 0.006);
-      rrect(g, c.x + g.lineWidth / 2, c.y + g.lineWidth / 2, c.w - g.lineWidth, c.h - g.lineWidth, R); g.stroke();
+      if (c.shape) { shapePath(g, c, g.lineWidth / 2); g.stroke(); }
+      else { rrect(g, c.x + g.lineWidth / 2, c.y + g.lineWidth / 2, c.w - g.lineWidth, c.h - g.lineWidth, R); g.stroke(); }
     }
     g.restore();
   }
@@ -945,6 +1279,14 @@
       g.save(); clipMargins(g, p); DECOR[F.decor](g, p, pal, rng(seedOf(p, o))); g.restore();
     }
     p.cells.forEach(function (c) { drawCell(g, p, c, o, pal, env); });
+    if (p.kind === "hati" && p.seam) {
+      // a line of paper down the middle of the heart, between the two of you
+      var hb = p.cells[0].box;
+      g.save(); shapePath(g, p.cells[0], 0); g.clip();
+      g.strokeStyle = pal.paper || "#0E0D0C"; g.lineWidth = p.seam;
+      g.beginPath(); g.moveTo(hb.x + hb.w / 2, hb.y); g.lineTo(hb.x + hb.w / 2, hb.y + hb.h); g.stroke();
+      g.restore();
+    }
     if (p.kind === "belah" && p.seam) {
       var c0 = p.cells[0], slant = c0.w * 0.07, mid = c0.x + c0.w / 2;
       g.strokeStyle = pal.paper; g.lineWidth = p.seam; g.lineCap = "butt";
@@ -961,6 +1303,7 @@
     LAYOUTS: LAYOUTS, SUSUN: SUSUN, POSISI: POSISI, RASIO: RASIO, RASIO_ORDER: RASIO_ORDER,
     HURUF: HURUF, HURUF_ORDER: HURUF_ORDER, FRAMES: FRAMES, FRAME_ORDER: FRAME_ORDER, WARNA: WARNA, DEF: DEF,
     norm: norm, defaults: defaults, pakai: pakai, presets: presets, pressName: pressName,
+    frameOrder: frameOrder, layoutOrder: layoutOrder,
     plan: plan, draw: draw, palette: palette, estWidth: estWidth, lum: lum
   };
   root.Bingkai = api;

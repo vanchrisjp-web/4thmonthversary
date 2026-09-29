@@ -18,6 +18,7 @@
 
   var LIST = [
     { id: "asli", name: "Asli", note: "kamera apa adanya" },
+    { id: "malam26", name: "Malam 26", note: "ulang tahunmu" },
     { id: "ladang", name: "Ladang senja", note: "YS-006" },
     { id: "sakura", name: "Sakura", note: "musim semi" },
     { id: "kebun", name: "Kebun teh", note: "Bandung" },
@@ -229,6 +230,39 @@
         var lx = u * u * x + 2 * u * t * (x + w * 0.5) + t * t * (x + w);
         var ly = u * u * (y + h * 0.16) + 2 * u * t * (y + h * 0.34) + t * t * (y + h * 0.12);
         glow(g, lx, ly + U * 0.012, U * 0.03, "rgba(255,214,150,0.9)", "rgba(255,214,150,0)");
+      }
+    },
+    /* Kalung 26, her birthday night: a deep red room lit warm from the
+       middle, soft lights out of focus, two strings of bulbs across the top,
+       and a few hearts in the dark. */
+    malam26: function (g, x, y, w, h, R, U) {
+      g.fillStyle = grad(g, 0, y, 0, y + h, [[0, "#140504"], [0.55, "#2E0B0A"], [1, "#4A140F"]]);
+      g.fillRect(x, y, w, h);
+      glow(g, x + w * 0.5, y + h * 0.42, Math.max(w, h) * 0.62, "rgba(224,80,60,0.3)", "rgba(224,80,60,0)");
+      for (var i = 0; i < 30; i++) {
+        var a = (0.06 + R() * 0.16).toFixed(3), c = 150 + Math.floor(R() * 80);
+        g.fillStyle = "rgba(255," + c + ",120," + a + ")";
+        circle(g, x + R() * w, y + R() * h * 0.82, U * (0.018 + R() * 0.06));
+      }
+      [[0.08, 0.1], [0.2, 0.14]].forEach(function (L, k) {
+        var y0 = y + h * L[0], sag = h * L[1], n = 11 + k * 3;
+        g.strokeStyle = "rgba(40,20,14,0.9)"; g.lineWidth = Math.max(1, U * 0.004);
+        g.beginPath(); g.moveTo(x - w * 0.02, y0); g.quadraticCurveTo(x + w / 2, y0 + sag * 2, x + w * 1.02, y0); g.stroke();
+        for (var j = 0; j <= n; j++) {
+          var t = j / n, u = 1 - t;
+          var bx = u * u * (x - w * 0.02) + 2 * u * t * (x + w / 2) + t * t * (x + w * 1.02);
+          var by = u * u * y0 + 2 * u * t * (y0 + sag * 2) + t * t * y0 + U * 0.012;
+          glow(g, bx, by, U * 0.05, "rgba(255,214,150,0.55)", "rgba(255,214,150,0)");
+          g.fillStyle = "#FFE3B0"; circle(g, bx, by, U * 0.008);
+        }
+      });
+      for (var k2 = 0; k2 < 7; k2++) {
+        var hx = x + (0.08 + R() * 0.84) * w, hy = y + (0.34 + R() * 0.5) * h, hs = U * (0.03 + R() * 0.05);
+        g.fillStyle = "rgba(240,122,92," + (0.14 + R() * 0.16).toFixed(3) + ")";
+        g.beginPath(); g.moveTo(hx, hy + hs * 0.9);
+        g.bezierCurveTo(hx - hs * 1.4, hy, hx - hs * 0.8, hy - hs * 1.1, hx, hy - hs * 0.35);
+        g.bezierCurveTo(hx + hs * 0.8, hy - hs * 1.1, hx + hs * 1.4, hy, hx, hy + hs * 0.9);
+        g.fill();
       }
     },
     studio: function (g, x, y, w, h, R, U) {

@@ -67,8 +67,17 @@
     mekar:   { name: "Mekar",   css: "saturate(1.18) brightness(1.13) contrast(0.94)" },
     retro:   { name: "Retro",   css: "sepia(0.5) contrast(1.12) saturate(1.2) brightness(1.02)" },
     malam:   { name: "Malam",   css: "grayscale(1) contrast(1.2) brightness(0.98)" },
-    salju:   { name: "Salju",   css: "brightness(1.16) saturate(0.82) contrast(1.06) hue-rotate(8deg)" }
+    salju:   { name: "Salju",   css: "brightness(1.16) saturate(0.82) contrast(1.06) hue-rotate(8deg)" },
+    // Kalung 26, her birthday: the romantic ones (for every pressing; the birthday shows them first)
+    mawar:     { name: "Mawar",      css: "sepia(0.22) saturate(1.3) hue-rotate(-14deg) brightness(1.05) contrast(1.02)" },
+    senja:     { name: "Senja",      css: "sepia(0.38) saturate(1.45) hue-rotate(-20deg) contrast(1.06) brightness(1.02)" },
+    kenangan:  { name: "Kenangan",   css: "sepia(0.5) saturate(0.78) contrast(0.9) brightness(1.08)" },
+    lembut:    { name: "Lembut",     css: "brightness(1.1) contrast(0.88) saturate(1.06)" },
+    mimpi:     { name: "Mimpi",      css: "brightness(1.14) contrast(0.84) saturate(0.9) hue-rotate(-6deg)" },
+    sinema:    { name: "Sinema",     css: "contrast(1.16) saturate(0.86) sepia(0.12) brightness(0.96)" },
+    abuhangat: { name: "Abu hangat", css: "grayscale(1) sepia(0.28) contrast(1.08) brightness(1.04)" }
   };
+  var LOOK_026 = ["asli", "mawar", "senja", "kenangan", "lembut", "mimpi", "sinema", "abuhangat", "hangat", "dingin", "mekar", "retro", "malam", "salju"];
   /* Everything about how the strip is laid out and framed -- layout, frame,
      caption, look, countdown -- is one object (bingkai.js), remembered per
      pressing on this device and mirrored to the other booth. */
@@ -659,7 +668,7 @@
     try { q = new URLSearchParams(location.search).get("press") || ""; } catch (e) {}
     return /^[0-9]{1,3}$/.test(q) ? ("00" + q).slice(-3) : "004";
   }
-  function pressMark() { return "YS-" + PRESS; }
+  function pressMark() { return PRESS === "026" ? "Kalung 26" : "YS-" + PRESS; }
   /* THE WAY BACK.
      The booth lives on Side A, but by month five you mostly arrive from
      somewhere else -- and the door out said "Album" and led to Side A's front
@@ -703,7 +712,19 @@
   function paintPress() {
     var tag = document.querySelector("header.top .tag");
     var nm = BK.pressName(PRESS);
-    if (tag) tag.textContent = "Kamu & Aku · sesi berdua · " + pressMark() + (nm && PRESS !== "004" ? " · " + nm : "");
+    if (tag) tag.textContent = "Kamu & Aku · sesi berdua · " + pressMark() + (nm && PRESS !== "004" && PRESS !== "026" ? " · " + nm : "");
+    if (PRESS === "026") {
+      // her birthday: its own name on the door, and its night red in the browser's bar
+      var brand = document.querySelector(".brand");
+      if (brand) {
+        brand.textContent = "Photobox ";
+        var em = document.createElement("em"); em.textContent = "berdua"; brand.appendChild(em);
+      }
+      if (tag) tag.textContent = "Kalung 26 · ulang tahunmu, sesi berdua";
+      var meta26 = document.querySelector('meta[name="theme-color"]');
+      if (meta26) meta26.setAttribute("content", "#1E0807");
+      document.title = "Photobox berdua · Kalung 26";
+    }
     if (PRESS === "006") {
       var hh = document.querySelector(".brand .hh");
       if (hh) hh.textContent = "✿";
@@ -967,7 +988,7 @@
   var wallImg = null, wallBlob = null, wallKey = "", wallMine = false, wallCache = {}, wallCacheN = 0;
   function wallId() {
     var id = studio.latar;
-    if (id === "asli") id = PRESS === "006" ? "ladang" : "studio";   // "Satu tempat" always needs a room
+    if (id === "asli") id = PRESS === "006" ? "ladang" : PRESS === "026" ? "malam26" : "studio";   // "Satu tempat" always needs a room
     if (id === "foto" && !(wallImg && studio.wallKey === wallKey)) id = "studio";
     return id;
   }
@@ -1217,16 +1238,17 @@
       host.appendChild(b);
     }
     var lays = $("#st-layouts");
-    BK.LAYOUTS.forEach(function (L) {
+    (BK.layoutOrder ? BK.layoutOrder(PRESS) : BK.LAYOUTS).forEach(function (L) {
       card(lays, L.id, L.name, L.note, "data-layout", function () {
         // standing together needs a room: an untouched "Asli" gets this pressing's wallpaper
-        if (L.id === "bareng" && studio.latar === "asli") setStudio({ layout: L.id, latar: PRESS === "006" ? "ladang" : "studio" });
+        if (L.id === "bareng" && studio.latar === "asli") setStudio({ layout: L.id, latar: PRESS === "006" ? "ladang" : PRESS === "026" ? "malam26" : "studio" });
         else setStudio({ layout: L.id });
       });
     });
-    var FRAME_NOTE = { ladang: "YS-006", sisia: "YS-004", kafe: "YS-005", salju: "dingin, bersih", film: "roll film", putih: "galeri", none: "foto sampai tepi" };
+    var FRAME_NOTE = { ladang: "YS-006", sisia: "YS-004", kafe: "YS-005", salju: "dingin, bersih", film: "roll film", putih: "galeri", none: "foto sampai tepi",
+      kalung26: "11.10.2026", mawar: "mawar & kelopak", surat: "Tokyo ke Bandung", langit: "bulan & bintang", pesta: "bendera & konfeti", hati: "hati di mana-mana" };
     var frs = $("#st-frames");
-    BK.FRAME_ORDER.forEach(function (id) {
+    (BK.frameOrder ? BK.frameOrder(PRESS) : BK.FRAME_ORDER).forEach(function (id) {
       card(frs, id, BK.FRAMES[id].name, FRAME_NOTE[id], "data-frame", function () { setStudio(BK.pakai(studio, id)); });
     });
 
@@ -1339,7 +1361,7 @@
     if (geserReset) geserReset.addEventListener("click", function () { setStudio({ geserHX: 0, geserHY: 0, geserGX: 0, geserGY: 0 }); });
 
     var lookRow = document.querySelector(".looks");
-    if (lookRow) Object.keys(LOOKS).forEach(function (k) {
+    if (lookRow) (PRESS === "026" ? LOOK_026.filter(function (k) { return LOOKS[k]; }) : Object.keys(LOOKS)).forEach(function (k) {
       var b = el("button", "chip", LOOKS[k].name); b.type = "button";
       b.setAttribute("data-look", k); b.setAttribute("aria-pressed", "false");
       b.addEventListener("click", function () { setStudio({ look: k }); });
@@ -1814,6 +1836,7 @@
       if (audio.paused) audio.play().catch(function () {});
       refresh();
     }
+    if (PRESS === "026" && !songUrl()) { toggle.hidden = true; return; }
     fetch("/content.json", { cache: "no-store" })
       .then(function (r) { return r.ok ? r.json() : null; })
       .catch(function () { return null; })

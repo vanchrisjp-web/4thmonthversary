@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- the booth's own three faces, then the five a caption can be set in -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&family=Mona+Sans:wdth,wght@75..125,200..900&family=IBM+Plex+Mono:wght@400;600&family=Caveat:wght@600;700&family=Fraunces:ital,wght@1,500&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&family=Mona+Sans:wdth,wght@75..125,200..900&family=IBM+Plex+Mono:wght@400;600&family=Caveat:wght@600;700&family=Fraunces:ital,wght@1,500&family=Instrument+Serif:ital@0;1&family=Ballet:opsz@16..72&display=swap">
   <script>
     /* The pressing you walked in from dresses the booth before first paint
        (photobox.js reads the same parameter to stamp and frame the strip). */
@@ -33,6 +33,14 @@
        reads on it. Everything else about the booth stays Side A's. */
     html[data-press="006"] { --ink:#15160F; --paper:#EDE8DC; --pink:#E58A5F; --grey:#A7A08E;
       --line: rgba(237,232,220,0.15); --line2: rgba(237,232,220,0.32); }
+    /* KALUNG 26, her birthday (?press=026): the birthday site's night red and its
+       display face for everything -- the small print in its italic, never in
+       capitals -- with round pills and soft cards, lit warm from the top.
+       Everything below keys off html[data-press="026"]; the other pressings
+       are untouched. */
+    html[data-press="026"] { --ink:#1E0807; --paper:#F4F0EB; --pink:#E0503C; --blue:#D8B47A; --grey:rgba(244,240,235,.62);
+      --line: rgba(216,180,122,.16); --line2: rgba(244,240,235,.24);
+      --mono:"Instrument Serif",Georgia,serif; --body:"Instrument Serif",Georgia,serif; --disp:"Instrument Serif",Georgia,serif; }
     * { box-sizing:border-box; margin:0; }
     body { background:var(--ink); color:var(--paper); font-family:var(--body); line-height:1.5;
       -webkit-font-smoothing:antialiased; min-height:100svh; padding:clamp(1rem,4vw,2.5rem);
@@ -207,6 +215,70 @@
     .music-toggle:hover { border-color:var(--pink); }
     .music-toggle:active { transform:scale(.92); }
     .music-toggle.off { color:var(--grey); }
+
+    .music-toggle[hidden] { display:none; }
+
+    html[data-press="026"] body { font-size:1.08rem;
+      background: radial-gradient(ellipse 90% 60% at 50% 0%, #3C130E 0%, rgba(30,8,7,0) 70%) no-repeat, #1E0807; }
+    html[data-press="026"] .mono, html[data-press="026"] .tag, html[data-press="026"] .btn, html[data-press="026"] .chip,
+    html[data-press="026"] .st-tabs button, html[data-press="026"] .st-lab, html[data-press="026"] .st-card b, html[data-press="026"] .field,
+    html[data-press="026"] .feed .who, html[data-press="026"] .album-grid figcaption, html[data-press="026"] .album-grid a.dl,
+    html[data-press="026"] .album-grid button.del, html[data-press="026"] .status, html[data-press="026"] .st-sw .own,
+    html[data-press="026"] .feed .off {
+      text-transform:none; letter-spacing:.01em; font-style:italic; font-weight:400; }
+    html[data-press="026"] .tag { font-size:1.02rem; color:var(--grey); }
+    html[data-press="026"] header.top { border-bottom-color:rgba(216,180,122,.28); padding-bottom:1.1rem; margin-bottom:2rem; }
+    html[data-press="026"] .brand { font-weight:400; text-transform:none; letter-spacing:-.01em; font-size:clamp(2.4rem, 1.4rem + 4vw, 4.2rem); line-height:1; }
+    html[data-press="026"] .brand em { font-family:"Ballet","Instrument Serif",serif; font-style:normal; font-size:.9em; color:#F7C9B8; margin-left:.08em; }
+    html[data-press="026"] .btn { border-radius:999px; font-size:1.12rem; padding:.7em 1.5em; border-color:rgba(244,240,235,.3); }
+    html[data-press="026"] .btn:hover { border-color:var(--blue); color:var(--blue); }
+    html[data-press="026"] .btn.solid { background:var(--paper); color:var(--ink); border-color:var(--paper); }
+    html[data-press="026"] .btn.solid:hover { background:var(--pink); border-color:var(--pink); color:var(--paper); }
+    html[data-press="026"] .card { border-radius:24px; border-color:rgba(216,180,122,.24); padding:1.6rem 1.6rem 1.7rem;
+      background:linear-gradient(160deg, rgba(244,240,235,.07), rgba(244,240,235,.015)); box-shadow:0 40px 70px -46px rgba(0,0,0,.9); }
+    html[data-press="026"] .card h2 { font-weight:400; text-transform:none; letter-spacing:-.01em; font-size:2.1rem; font-style:italic; margin-bottom:.4rem; }
+    html[data-press="026"] .card p { font-size:1.08rem; }
+    @media (min-width:760px) {
+      html[data-press="026"] .lobby { max-width:62rem; grid-template-columns:1fr 1fr; }
+      html[data-press="026"] .lobby .lobby-acts, html[data-press="026"] .lobby .note, html[data-press="026"] .lobby .status { grid-column:1 / -1; }
+    }
+    html[data-press="026"] .field { border-radius:999px; text-align:center; font-size:1.2rem; letter-spacing:.08em; }
+    /* (spaces round the + are what makes a clamp() valid; the booth's own rule has none, so its size never applied) */
+    html[data-press="026"] .code { font-weight:400; font-style:italic; letter-spacing:.04em; color:#F7C9B8; font-size:clamp(3rem, 1.8rem + 6vw, 5.6rem); }
+    html[data-press="026"] .sharebox { border-radius:18px; border-style:solid; border-color:rgba(216,180,122,.3); }
+    html[data-press="026"] .sharebox input { font-family:var(--body); font-style:italic; font-size:1rem; }
+    html[data-press="026"] .feed { border-radius:20px; border-color:rgba(216,180,122,.24); }
+    html[data-press="026"] .feed .who { border-radius:999px; font-size:.95rem; padding:.25em .8em; background:rgba(30,8,7,.7); }
+    html[data-press="026"] .chip { border-radius:999px; font-size:1rem; padding:.4em .95em; border-color:rgba(244,240,235,.24); }
+    html[data-press="026"] .chip:hover { border-color:var(--blue); }
+    html[data-press="026"] .st-canvasbox { border-radius:24px; border-color:rgba(216,180,122,.2);
+      background:radial-gradient(90% 80% at 50% 28%, rgba(224,80,60,.18), rgba(224,80,60,0) 70%), #160504; }
+    html[data-press="026"] .st-canvasbox canvas { border-radius:3px; box-shadow:0 34px 70px -26px rgba(0,0,0,.92); }
+    html[data-press="026"] .st-panel { border-radius:24px; overflow:hidden; border-color:rgba(216,180,122,.22); background:rgba(244,240,235,.022); }
+    html[data-press="026"] .st-tabs { border-bottom-color:rgba(216,180,122,.2); }
+    html[data-press="026"] .st-tabs button { font-size:1.02rem; border-right-color:rgba(216,180,122,.12); }
+    html[data-press="026"] .st-tabs button span { font-size:.82rem; color:var(--blue); opacity:1; }
+    html[data-press="026"] .st-tabs button[aria-selected="true"] { background:rgba(244,240,235,.07); color:var(--paper); box-shadow:inset 0 -2px 0 var(--pink); }
+    html[data-press="026"] .st-lab { font-size:.98rem; color:var(--grey); }
+    html[data-press="026"] .st-card { border-radius:16px; border-color:rgba(244,240,235,.1); padding:.5rem; }
+    html[data-press="026"] .st-card b { font-size:1rem; }
+    html[data-press="026"] .st-card i { font-size:.86rem; font-style:italic; }
+    html[data-press="026"] .st-card[aria-pressed="true"] { border-color:var(--pink); background:rgba(224,80,60,.09); box-shadow:inset 0 0 0 1px var(--pink); }
+    html[data-press="026"] .st-group { border-radius:16px; border-style:solid; border-color:rgba(216,180,122,.2); }
+    html[data-press="026"] .st-sw button, html[data-press="026"] .st-sw label { border-radius:50%; }
+    html[data-press="026"] .st-text { border-radius:16px; font-family:var(--body); font-style:italic; font-size:1.25rem; }
+    html[data-press="026"] .st-note { font-size:.98rem; font-style:italic; }
+    html[data-press="026"] .count { background:rgba(30,8,7,.55); }
+    html[data-press="026"] .count b { font-weight:400; font-style:italic; color:#FFF3EC;
+      text-shadow:0 0 60px rgba(224,80,60,.65), .03em .02em 0 rgba(216,180,122,.8); }
+    html[data-press="026"] .album-grid figure { border-radius:16px; overflow:hidden; border-color:rgba(216,180,122,.2); }
+    /* the way back sits bottom left (the birthday brings no music button), clear of the tabs */
+    html[data-press="026"] .backlink { top:auto; right:auto; left:1rem; bottom:calc(env(safe-area-inset-bottom) + 1rem); border-radius:999px;
+      text-decoration:none; color:var(--paper);
+      background:rgba(30,8,7,.82); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
+    html[data-press="026"] header.top { padding-right:0; }
+    @media (max-width:640px) { html[data-press="026"] header.top { padding-top:0; } }
+    html[data-press="026"] .note { font-size:1.02rem; font-style:italic; max-width:60ch; }
 
     @media (prefers-reduced-motion: reduce){ * { animation-duration:.001ms !important; } }
   </style>

@@ -55,3 +55,22 @@ sizes exactly.
   "Balikin posisi" in the Latar tab puts both back. Tested in `bingkai.test.mjs`.
 - The two-booth sync of a drag has not been driven live with two cameras: it rides the same
   studio message as every other choice.
+
+## Kalung 26, her birthday edition (29 Sep)
+
+Her birthday site (kalung26.vanchrisjp.workers.dev) links here with `?press=026` (its own
+number, not a monthly pressing: the stamp reads "Kalung 26", never "YS-026"). Evan asked for "the
+same engine, but a more romantic design, and more layouts, filters and frames".
+- `html[data-press="026"]` in `photobox.html` dresses the booth in the birthday's night red and
+  Instrument Serif (italic small print, never capitals), round pills and soft cards; the way back
+  sits bottom left, and the booth is silent unless `?song=` is passed (the birthday has no mp3).
+  Every other pressing looks exactly as before.
+- New for every pressing, shown first on 026 (`Bingkai.frameOrder/layoutOrder`, `LOOK_026`):
+  layouts "Satu hati", "Dua hati", "Dua cincin" (shaped cells: `shape` "hati"/"bulat", `box`,
+  `ring`) and "Kolase kenangan" (six tilted cards, three shots); frames Kalung 26, Mawar, Surat
+  cinta, Langit malam, Ulang tahun, Penuh hati (their small print in serif italic, `metaStyle`);
+  faces Romantis (Instrument Serif) and Sambung (Ballet); seven looks (Mawar, Senja, Kenangan,
+  Lembut, Mimpi, Sinema, Abu hangat); the wallpaper "Malam 26".
+- A `clamp()` needs spaces round its `+`: the booth's own `.brand` and `.code` sizes have none,
+  so they never applied. The 026 rules are written correctly; the old ones were left alone.
+- Signaling and media were not touched. `node bingkai.test.mjs` (35) and `node latar.test.mjs`.

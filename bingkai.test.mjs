@@ -409,4 +409,54 @@ t("the drawing says where each person stands, inside their picture, so a finger 
   assert.equal(run({ layout: "strip" }, twoFaces).length, 0, "with Asli there is nobody cut out to move");
 });
 
+
+t("her birthday (Kalung 26, ?press=026) walks in wearing its night red, the two of you in one heart", () => {
+  const k = B.defaults("026");
+  assert.equal(k.frame, "kalung26");
+  assert.equal(k.layout, "hati");
+  assert.equal(k.huruf, "romantis");
+  assert.ok(k.teks.includes("♥"));
+  assert.equal(B.pressName("026"), "Kalung 26");
+  assert.ok(B.presets("026").includes("Selamat ulang tahun, Sayang ♥"));
+  assert.equal(B.frameOrder("026")[0], "kalung26");
+  assert.deepEqual(B.frameOrder("004"), B.FRAME_ORDER, "the other pressings keep their order");
+  assert.equal(B.layoutOrder("026")[0].id, "hati");
+  assert.equal(B.layoutOrder("026").length, B.LAYOUTS.length);
+  assert.equal(B.defaults("004").frame, "sisia", "Side A is unchanged");
+});
+
+t("the romantic layouts: one heart, two hearts, two rings, a collage of three shots", () => {
+  const count = (o) => B.plan(o).shots;
+  assert.equal(count({ layout: "hati" }), 1);
+  assert.equal(count({ layout: "duahati" }), 1);
+  assert.equal(count({ layout: "cincin" }), 1);
+  assert.equal(count({ layout: "kolase" }), 3);
+  const heart = B.plan({ layout: "hati" });
+  assert.deepEqual(J(heart.cells.map((c) => c.shape)), ["hati", "hati"]);
+  assert.equal(heart.cells[0].box.w, heart.cells[0].w + heart.cells[1].w, "one heart, split down the middle");
+  const rings = B.plan({ layout: "cincin" });
+  assert.ok(rings.cells[1].x < rings.cells[0].x + rings.cells[0].w, "the rings overlap");
+  assert.ok(rings.cells[1].ring > 0);
+  assert.equal(B.plan({ layout: "kolase" }).cells.filter((c) => c.card && c.rot).length, 6);
+});
+
+t("a heart and a ring clip their pictures to their shapes, and the heart's outline is drawn once", () => {
+  const o = { ...B.defaults("026") };
+  const g = fakeContext();
+  B.draw(g, B.plan(o), o, { src: (c) => (c.who === "a" ? { ...pic, img: { name: "imgA" }, flip: true } : { ...pic, img: { name: "imgB" } }), date: "11 Oktober 2026  ·  00:00", press: "Kalung 26" });
+  assert.ok(g.calls.filter((c) => c[0] === "bezierCurveTo").length >= 12, "the heart is drawn as a curve");
+  assert.ok(g.calls.some((c) => c[0] === "fillText" && c[1] === "Kalung 26"), "the stamp is the birthday's name");
+  const r = { ...o, layout: "cincin" }, g2 = fakeContext();
+  B.draw(g2, B.plan(r), r, { src: () => pic });
+  assert.ok(g2.calls.filter((c) => c[0] === "arc").length >= 3, "two rings and the band between them");
+});
+
+t("the six romantic papers and the two faces are there for every pressing", () => {
+  for (const id of ["kalung26", "mawar", "surat", "langit", "pesta", "hati"]) {
+    assert.ok(B.FRAMES[id] && B.FRAME_ORDER.includes(id), id);
+    assert.equal(B.FRAMES[id].metaStyle, "italic");
+  }
+  for (const id of ["romantis", "sambung"]) assert.ok(B.HURUF[id] && B.HURUF_ORDER.includes(id), id);
+  assert.equal(B.FRAME_ORDER[B.FRAME_ORDER.length - 1], "none", "no frame stays last");
+});
 console.log(n + " tests passed");
