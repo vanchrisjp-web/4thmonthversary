@@ -74,3 +74,15 @@ same engine, but a more romantic design, and more layouts, filters and frames".
 - A `clamp()` needs spaces round its `+`: the booth's own `.brand` and `.code` sizes have none,
   so they never applied. The 026 rules are written correctly; the old ones were left alone.
 - Signaling and media were not touched. `node bingkai.test.mjs` (35) and `node latar.test.mjs`.
+
+## YS-007, Penerbangan 007 (12 Oct)
+
+The 7th links here with `?press=007` from its baggage hall (`#bilik`), `from`/`fromname` for the way
+back. `defaults("007")` starts in the new frame `tiket`, a boarding pass:
+- cream card, navy ink and the flight's coral, small print and caption in the typewriter face;
+- perforations and punch marks along the tear line (left margin, or the top of a wide print), a
+  barcode down the right margin, small planes on a dotted route in what is left, clipped out of the
+  pictures like every decoration;
+- `✈` in a caption is drawn (`pesawat()`), like the field's `✿`: the same on every phone;
+- presets "Kamu ✈ Aku", "CGK ✈ HND", "Kursi 17A ♥ 17C", "Jammu = jamku"; `frameOrder("007")` shows
+  it first. Every other pressing looks as before; signaling and media untouched.
