@@ -139,15 +139,23 @@
       line: "rgba(107,26,42,0.25)", rule: "rgba(107,26,42,0.16)", mono: "'Instrument Serif', Georgia, serif", metaStyle: "italic",
       decor: "hati", pakai: { tebal: 30, jarak: 12, sudut: 18, huruf: "romantis" }
     },
+    /* YS-007, Penerbangan 007: a boarding pass. Cream card, navy ink, the flight's coral; its small
+       print and its caption in the typewriter face an airline ticket is printed in. */
+    tiket: {
+      name: "Boarding pass", paper: "#F5F0E6", ink: "#14213D", soft: "#5C6475", accent: "#E07A5F", moss: "#D9962E",
+      line: "rgba(20,33,61,0.7)", rule: "rgba(20,33,61,0.22)", mono: "'IBM Plex Mono', 'Space Mono', monospace",
+      decor: "tiket", pakai: { tebal: 32, jarak: 14, sudut: 4, huruf: "mesin" }
+    },
     none: {
       name: "Tanpa bingkai", paper: "", ink: "#FFFDF8", soft: "rgba(255,253,248,0.82)", accent: "#FFB199",
       line: "", rule: "", mono: "'IBM Plex Mono', 'Space Mono', monospace", decor: "", pakai: null
     }
   };
-  var FRAME_ORDER = ["ladang", "sisia", "kafe", "salju", "film", "putih", "kalung26", "mawar", "surat", "langit", "pesta", "hati", "none"];
+  var FRAME_ORDER = ["ladang", "tiket", "sisia", "kafe", "salju", "film", "putih", "kalung26", "mawar", "surat", "langit", "pesta", "hati", "none"];
   var ROMANTIS = ["kalung26", "mawar", "surat", "langit", "pesta", "hati"];
   // which frames and layouts a pressing shows first (its own, then the rest)
   function frameOrder(press) {
+    if (press === "007") return ["tiket"].concat(FRAME_ORDER.filter(function (id) { return id !== "tiket"; }));
     if (press !== "026") return FRAME_ORDER.slice();
     return ROMANTIS.concat(FRAME_ORDER.filter(function (id) { return ROMANTIS.indexOf(id) < 0; }));
   }
@@ -164,6 +172,7 @@
     "004": { name: "Sisi A", bulan: "Empat bulan", tgl: "17.07.2026" },
     "005": { name: "Kafe Malam", bulan: "Lima bulan", tgl: "17.08.2026" },
     "006": { name: "Ladang Bunga", bulan: "Enam bulan", tgl: "17.09.2026" },
+    "007": { name: "Penerbangan 007", bulan: "Tujuh bulan", tgl: "17.10.2026" },
     // not a monthly pressing: her birthday, walked in from kalung26 (?press=026)
     "026": { name: "Kalung 26", bulan: "Dua puluh enam", tgl: "11.10.2026" }
   };
@@ -245,6 +254,13 @@
       o.sudut = FRAMES.ladang.pakai.sudut; o.huruf = FRAMES.ladang.pakai.huruf;
       o.teks = "Kamu ✿ Aku";
     }
+    if (press === "007") {
+      // the flight walks in as a boarding pass, the two of you side by side as seats 17A and 17C
+      var TK = FRAMES.tiket.pakai;
+      o.frame = "tiket";
+      o.tebal = TK.tebal; o.jarak = TK.jarak; o.sudut = TK.sudut; o.huruf = TK.huruf;
+      o.teks = "Kamu ✈ Aku";
+    }
     if (press === "026") {
       // her birthday walks in wearing its own night red, the two of you in one heart
       var K = FRAMES.kalung26.pakai;
@@ -267,6 +283,10 @@
   }
 
   function presets(press) {
+    if (press === "007") {
+      return ["Kamu ✈ Aku", "Kamu ♥ Aku", "CGK ✈ HND", "Penerbangan 007 · YS-007", "Kursi 17A ♥ 17C",
+        "Jammu = jamku", "Tujuh bulan, masih kita", "17.10.2026"];
+    }
     if (press === "026") {
       return ["Selamat ulang tahun, Sayang ♥", "Happy Beloved Birthday ♥", "Kamu ♥ Aku", "Dua puluh enam ♥",
         "Tokyo ♥ Bandung", "Kalung 26 · 11.10.2026", "Sampai ketemu di 27", "11.10.2026"];
@@ -899,13 +919,57 @@
   };
   Object.keys(DECOR_ROMANTIS).forEach(function (k) { DECOR[k] = DECOR_ROMANTIS[k]; });
 
+  /* YS-007, the boarding pass: the tear line's perforations down the left margin (across the top of
+     a wide print), a punch mark where it meets each edge, a barcode down the right margin, and small
+     planes on the dotted line of a route in the margins left over. Never under a word. */
+  DECOR.tiket = function (g, p, pal, R) {
+    var b = bbox(p), mL = b.x, mR = p.W - b.x2, mT = b.y, tall = p.H >= p.W * 0.9;
+    var lubang = tall ? mL >= 12 : (mT >= 12 && !p.top);
+    g.fillStyle = pal.rule;
+    if (lubang) {
+      var m = tall ? mL : mT, r = Math.max(1.2, Math.min(3.2, m * 0.07)), st = r * 4.4, pos = m * 0.55, panjang = tall ? p.H : p.W;
+      for (var t = st; t < panjang - st * 0.5; t += st) { g.beginPath(); if (tall) g.arc(pos, t, r, 0, Math.PI * 2); else g.arc(t, pos, r, 0, Math.PI * 2); g.fill(); }
+      var rp = Math.min(m * 0.32, 12);
+      g.fillStyle = "rgba(20,33,61,0.14)";
+      [0, panjang].forEach(function (e) { g.beginPath(); if (tall) g.arc(pos, e, rp, 0, Math.PI * 2); else g.arc(e, pos, rp, 0, Math.PI * 2); g.fill(); });
+    }
+    // the barcode, read down the right margin, around its middle
+    var kode = mR >= 14 ? { x: b.x2 + mR * 0.22, w: mR * 0.56, y0: p.H * 0.32, y1: p.H * 0.68 } : null;
+    if (kode) {
+      g.fillStyle = pal.ink;
+      for (var y = kode.y0; y < kode.y1;) {
+        var tebal = Math.max(1, Math.round((0.6 + R() * 2.4) * Math.max(1, mR / 40)));
+        g.fillRect(kode.x, y, kode.w, tebal);
+        y += tebal + Math.max(1, Math.round((0.8 + R() * 2) * Math.max(1, mR / 40)));
+      }
+    }
+    // the route in the margins that are left: dots, and now and then a plane flying along it
+    scatter(p, R, function (x, y, s, i) {
+      if (lubang && (tall ? x < mL : y < mT)) return;
+      if (kode && x > b.x2 && y > kode.y0 - s && y < kode.y1 + s) return;
+      var along = x > b.x && x < b.x2 ? 0 : Math.PI / 2;
+      if (i % 4 === 0) pesawat(g, x, y, s * 0.95, along, pal.accent);
+      else { g.fillStyle = i % 4 === 2 ? pal.moss : pal.soft; g.beginPath(); g.arc(x, y, Math.max(1, s * 0.09), 0, Math.PI * 2); g.fill(); }
+    }, 2.4);
+  };
+
   // ------------------------------------------------------------------ type
-  var GLYPH = /([♥✿])/;
+  var GLYPH = /([♥✿✈])/;
+  // a small plane, nose to the right: the flight's own glyph, the same on every phone
+  function pesawat(g, x, y, s, rot, col) {
+    g.save(); g.translate(x, y); g.rotate(rot || 0); g.scale(s / 24, s / 24); g.fillStyle = col;
+    g.beginPath(); g.moveTo(12, 0); g.quadraticCurveTo(11, -1.8, 8, -1.8); g.lineTo(-10, -1.4); g.lineTo(-12, 0); g.lineTo(-10, 1.4); g.lineTo(8, 1.8); g.quadraticCurveTo(11, 1.8, 12, 0); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(3, -1.5); g.lineTo(-3.5, -10.5); g.lineTo(-6.5, -10.5); g.lineTo(-2.5, -1.5); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(3, 1.5); g.lineTo(-3.5, 10.5); g.lineTo(-6.5, 10.5); g.lineTo(-2.5, 1.5); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(-8, -1.2); g.lineTo(-10.8, -5.5); g.lineTo(-12.6, -5.5); g.lineTo(-11, -1.2); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(-8, 1.2); g.lineTo(-10.8, 5.5); g.lineTo(-12.6, 5.5); g.lineTo(-11, 1.2); g.closePath(); g.fill();
+    g.restore();
+  }
   function setFont(g, H, size) {
     g.font = H.style + " " + H.weight + " " + size.toFixed(1) + "px " + H.family;
     if ("letterSpacing" in g) g.letterSpacing = H.track ? (size * H.track).toFixed(2) + "px" : "0px";
   }
-  function segWidth(g, s, size) { return s === "✿" ? size * 0.95 : g.measureText(s).width; }
+  function segWidth(g, s, size) { return s === "✿" ? size * 0.95 : s === "✈" ? size * 1.05 : g.measureText(s).width; }
   /* One line of caption, centred, shrunk to fit. A ✿ is drawn, not set: the
      field's blossom in the frame's accent, the same on every phone whether or
      not its fonts have the character. A ♥ takes the accent too. */
@@ -924,6 +988,7 @@
     parts.forEach(function (s) {
       var sw = segWidth(g, s, size);
       if (s === "✿") blossom(g, x + sw / 2, cy, size * 0.42, accent, eye, 0.3);
+      else if (s === "✈") pesawat(g, x + sw / 2, cy, size * 0.82, -0.12, accent);
       else { g.fillStyle = s === "♥" ? accent : col; g.fillText(s, x, cy + H.nudge * size); }
       x += sw;
     });
